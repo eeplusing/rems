@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>数据库目录服务</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+
+        var data = null;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,
+                controls: [
+                        new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                        new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                        new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                        new OpenLayers.Control.MousePosition(),                 //此控件显示鼠标移动时，所在点的地理坐标
+                        new OpenLayers.Control.OverviewMap()                    //鹰眼
+                    ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldMKTVector", {
+                //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            getGDBList(); //获取已有数据源列表
+        }
+
+        //获取数据库列表
+        function getGDBList() {
+            //实例化VectorLayer类,设置数据源为MapGISLocal
+            var vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer({ serverName: "MapGISLocal" });
+            //调用getGDBList函数， getGDBListSuccess为执行成功的回调函数
+            vectorLayerInfo.getGDBList(getGDBListSuccess);
+        }
+        function getGDBListSuccess(results) {
+            var svrSelect = $("#gdbList");
+            for (var i = 0; i < results.length; i++) {
+                $("<option value='" + results[i] + "'>" + results[i] + "</option>").appendTo(svrSelect);
+            }
+
+        }
+
+        /*==========================================栅格目录管理（设置栅格目录信息）========================================*/
+        //设置栅格目录名称
+        function setRcsName() {
+            //实例化VectorLayer类
+            var vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer();
+            //调用setServerName方法，设置数据源名称为MapGISLocal
+            vectorLayerInfo.setServerName("MapGISLocal");
+            //调用setGdbName方法设置GDB为MapGISLocal数据源下的示例数据数据库
+            vectorLayerInfo.setGdbName("示例数据");
+            //调用setDsName方法，设置要素数据集为sample数据库下的栅格目录
+            vectorLayerInfo.setRcsName("栅格目录");
+        }
+
+
+        /* ==========================================栅格目录管理（获取指定数据库下栅格目录信息）=================================================== */
+        //获取指定数据库下栅格目录列表
+        function getRcsList() {
+            //实例化VectorLayer类,设置数据源为MapGISLocal，地理数据库为示例数据
+            var vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer({ serverName: "MapGISLocal", gdbName: $("#gdbList  option:selected").text() });
+            //调用getRcsList函数， getRcsListSuccess为执行成功的回调函数
+            vectorLayerInfo.getRcsList(getRcsListSuccess);
+        }
+        function getRcsListSuccess(result) {
+            if (result.length==0) {
+                alert("没有获取到要素数据集信息！" + $("#gdbList  option:selected").text() + "下没有要素数据集或没有连接上该数据库。");
+                return;
+            }
+            else {
+                //显示结果
+                var strjson = new Array();
+                for (var i = 0; i < result.length; i++) {
+                    strjson[i] = {};
+                    for (var k = 0; k < 1; k++) {
+                            strjson[i]["栅格目录名称"] = result[i];
+                    }
+
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array(1);
+                for (var j = 0; j < 1; j++) {
+                    filedStr[j] = {};
+                        filedStr[j]["field"] = "栅格目录名称";
+                        filedStr[j]["title"] = "栅格目录名称";
+                        filedStr[j]["width"] = "80";
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#RcsListTable').datagrid({
+                    title: '查询结果',
+                    width: 210,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#RcsListTable").datagrid("loadData", data);
+            }
+
+        }
+        
+    </script>
+</head>
+<body onload="init()">
+    <!--描述信息-->
+    <div id="header">
+        <span id="title">MapGIS IGServer CatalogService Example</span> <span id="shortdesc">
+            栅格目录管理</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        获取指定数据库下栅格目录列表：<br />
+                        <span>数据库：</span>
+                        <select id="gdbList">
+                        </select>
+                        <button onclick="getRcsList()">
+                            确定</button></p>
+                    <table id="RcsListTable">
+                        <tbody>
+                        </tbody>
+                    </table>
+                    <br />
+                    <br />
+                    <hr />
+                    <br />
+                    <p>
+                        设置栅格目录名称:<br />
+                        <span>（说明：此方法仅设置栅格目录名称，用于构建其他方法所需的参数，并不创建栅格目录）</span><br />
+                        <input id="myDSName" type="text" />
+                        <button onclick="setDSName()">
+                            确定</button>
+                    </p>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

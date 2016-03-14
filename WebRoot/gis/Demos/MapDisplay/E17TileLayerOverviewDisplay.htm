@@ -1,0 +1,83 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>鹰眼显示瓦片地图</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        var map, tilelayer;
+        
+        //地图初始化函数
+        $(function () {
+            map = new OpenLayers.Map("mapCon", {
+                isAutoConfig:true,
+                //加载常用地图控件
+                controls: [
+                //地图平移控件，添加后可以直接鼠标按下，移动地图
+                new OpenLayers.Control.PanZoomBar(),
+                //导航条，用于缩放地图显示级别
+                new OpenLayers.Control.Navigation(),
+                //图层控制面板
+                new OpenLayers.Control.LayerSwitcher(),
+                //显示鼠标当前位置的地理坐标
+                new OpenLayers.Control.MousePosition()
+                ]
+
+            });
+
+
+            //初始化瓦片图层对象
+            tilelayer = new Zondy.Map.TileLayer("MapGIS IGServer TileLayer", "WorldJWTile", {
+                //瓦片地图服务器ip
+                ip: "127.0.0.1",
+                //瓦片地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true
+            });
+            //将瓦片图层加载到地图中
+            map.addLayer(tilelayer);
+            //设置地图初始显示级数和中心
+            map.setCenter(new OpenLayers.LonLat(0, 0),0);
+
+
+
+            //鹰眼中显示指定类型的地图
+            var overLayer = new Zondy.Map.TileLayer("MapGIS IGS MapTileLayer2", "WorldJWTile", {
+                ip: "127.0.0.1",
+                port: "6163",
+                tileOrigin: new OpenLayers.LonLat(0, 0)
+            });
+
+            var mapOptions = {
+                numZoomLevels: 8,                        //地图的缩放级别
+                maxExtent: new OpenLayers.Bounds(-181.18399779022,-90.7340663245236,188.619962766591,102.992761638514),
+                maxResolution: 0.2926731183708889       //地图最大分辨率，默认是360度/256像素，相当于缩放级别0
+            };
+
+            var controlOptions = {
+                autoPan: false,     //自动平移鹰眼中的地图，这样标记范围是否始终保持在中心位置
+                mapOptions: mapOptions,  //一个对象，该对象包含了传给鹰眼的map构造函数的非默认选项
+                layers: [overLayer]    //鹰眼地图上的图层列表.
+            };
+            var overviewMap = new OpenLayers.Control.OverviewMap(controlOptions);
+            map.addControl(overviewMap);
+
+        });
+    </script>
+</head>
+<body>
+    <div id="header">
+        <span id="title">MapGIS IGServer TileLayerOverviewDisplay Example</span> 
+        <span id="shortdesc">鹰眼显示瓦片地图</span>
+    </div>
+    <div id="mapCon">
+    </div>
+</body>
+</html>

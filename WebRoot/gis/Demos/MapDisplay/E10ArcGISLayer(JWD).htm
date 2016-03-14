@@ -1,0 +1,76 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>ArcGIS地图显示示例（经纬度坐标）</title>
+
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        var map;
+        //地图初始化函数
+        function init() {
+            var extent = new OpenLayers.Bounds(-180, -90, 180, 90);
+
+            //初始化地图容器
+            map = new OpenLayers.Map({
+                div: "mapCon",
+                //根据公式计算最大分辨率
+                maxResolution: (extent.top - extent.bottom) / 256,
+                //显示范围
+                maxExtent: extent,
+                //地图显示总级数
+                numZoomLevels:8,
+                layers: [
+                //ESRI_Imagery_World_2D
+                    new Zondy.Map.ArcGISLayer("ImageryWorld2D", {
+                        tileOrigin: new OpenLayers.LonLat(-180, -90), //显示经纬度坐标系的ArcGIS地图时，需将地图原点设为(-180, -90)
+                        //ArcGIS地图类型
+                        layerType: "ESRI_Imagery_World_2D",
+                        isBaseLayer: true
+                    }),
+                    //ESRI_StreetMap_World_2D
+                    new Zondy.Map.ArcGISLayer("StreetMapWorld2D", {
+                        tileOrigin: new OpenLayers.LonLat(-180, -90),
+                        //ArcGIS地图类型
+                        layerType: "ESRI_StreetMap_World_2D",
+                        isBaseLayer: true
+                    }),
+                    //NGS_Topo_US_2D
+                    new Zondy.Map.ArcGISLayer("TopoUS2D", {
+                        ip: "127.0.0.1",
+                        port: "6163",
+                        tileOrigin: new OpenLayers.LonLat(-180, -90),
+                        //ArcGIS地图类型
+                        layerType: "NGS_Topo_US_2D",
+                        isBaseLayer: true
+                    })
+                ],
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                  //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                 //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+
+            //设置地图的显示中心及显示级数
+            map.setCenter(new OpenLayers.LonLat(0, 0), 1);
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer ArcGISLayerDisplay(JWD) Example</span> 
+        <span id="shortdesc">显示ArcGIS地图（经纬度）</span>
+    </div>
+    <div id="mapCon">
+    </div>
+</body>
+</html>

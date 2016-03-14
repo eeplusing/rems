@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>瓦片+矢量图层叠加显示示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, tilelayer, vectorLayer;
+
+        //地图初始化函数
+        $(function () {
+            map = new OpenLayers.Map("mapCon", {
+                isAutoConfig: true,  //自动获取MapGIS IGServer发布的地图信息
+                //加载常用地图控件
+                controls: [
+                //导航条，用于缩放地图显示级别
+                new OpenLayers.Control.PanZoomBar(),
+                //地图平移控件，添加后可以直接鼠标按下，移动地图
+                new OpenLayers.Control.Navigation(),
+                //图层控制面板
+                new OpenLayers.Control.LayerSwitcher(),
+                //显示鼠标当前位置的地理坐标
+                new OpenLayers.Control.MousePosition()
+                ]
+
+            });
+
+
+            //初始化瓦片图层对象
+            tilelayer = new Zondy.Map.TileLayer("MapGIS IGServer TileLayer", "WorldJWTile", {
+                //瓦片地图服务器ip
+                ip: "127.0.0.1",
+                //瓦片地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true,
+                //是否压缩瓦片，默认为false
+                compress: false
+            });
+
+
+            //叠加显示矢量图层
+            //初始化矢量图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", ["gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流"], {
+                //矢量图层地图服务器ip
+                ip: "127.0.0.1",
+                //矢量图层地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: false
+            });
+
+
+            //将瓦片图层加载到地图中
+            map.addLayers([tilelayer, vectorLayer]);
+            //设置地图初始显示级数和中心
+            map.setCenter(new OpenLayers.LonLat(0, 0), 0);
+        });
+    </script>
+</head>
+<body>
+    <div id="header">
+        <span id="title">MapGIS IGServer TileAndVectorLayerOverDisplay Example</span> <span
+            id="shortdesc">显示瓦片+矢量图层叠加地图</span>
+    </div>
+    <div id="mapCon">
+    </div>
+</body>
+</html>

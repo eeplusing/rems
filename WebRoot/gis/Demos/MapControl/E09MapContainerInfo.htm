@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>获取地图容器的相关信息</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map({
+                div: "mapCon",
+                layers: [
+                    new Zondy.Map.GoogleLayer("Google矢量数据", {
+                        layerType: "vector",           //设置要加载的谷歌地图的类型
+                        isBaseLayer: true             //将该图层作为基础底图
+                    }),
+                    new Zondy.Map.GoogleLayer("Google影像数据", {
+                        layerType: "raster",
+                        isBaseLayer: true            //将该图层作为基础底图
+                    }),
+                    new Zondy.Map.GoogleLayer("Google道路数据", {
+                        layerType: "road",
+                        isBaseLayer: false          //将该图层作为叠加图层
+                    }),
+                    new Zondy.Map.GoogleLayer("Google地形数据", {
+                        layerType: "terrain",        //将该图层作为基础底图
+                        isBaseLayer: true
+                    })
+                ],
+                maxExtent: new OpenLayers.Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34),
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 3);
+        }
+
+        /*===========================================获取地图容器相关信息===================================================*/
+        function getCurResolution() {
+            this.curResolution = map.getResolution(); //获取最大分辨率
+            $("#resolutionText").val("当前分辨率:" + this.curResolution);
+        }
+        function getCurBound() {
+            this.curMapBound = map.getExtent();
+            $("#mapBoundText").val("当前范围为：" + this.curMapBound.toString()); //获取当前地图的显示范围
+        }
+        function getMapDivInfo() {
+            this.viewSize = map.getSize();    //获取当前地图容器div的大小
+            $("#divSizeText").val("当前div高：" + viewSize.h + " 宽：" + this.viewSize.w);
+        }
+    </script>
+</head>
+<body onload="init();">
+    <!--头部描述信息-->
+    <div id="header">
+        <span id="title">MapGIS IGServer Information about with the map container Example</span> 
+        <span id="shortdesc">获取地图容器的相关信息</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        获取地图容器的相关信息：</p>
+                    <button class="functionButton" id="resolution"  onclick="getCurResolution()" >当前分辨率</button><br />
+                    <textarea  id="resolutionText"></textarea>
+                    <button class="functionButton" id="bound"  onclick="getCurBound()">当前地图范围</button><br />
+                    <textarea  id="mapBoundText"></textarea>
+                    <button class="functionButton" id="view"  onclick="getMapDivInfo()">当前视口范围</button><br />
+                    <textarea  id="divSizeText"></textarea>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

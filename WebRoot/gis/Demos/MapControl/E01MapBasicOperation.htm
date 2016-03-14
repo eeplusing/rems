@@ -1,0 +1,126 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>地图基本操作功能</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, tilelayer;
+
+        //地图初始化函数
+        $(function () {
+            map = new OpenLayers.Map("mapCon", {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                //加载常用地图控件
+                controls: [
+                //地图平移控件，添加后可以直接鼠标按下，移动地图
+                        new OpenLayers.Control.PanZoomBar(),
+                //导航条，用于缩放地图显示级别
+                        new OpenLayers.Control.Navigation(),
+                //图层控制面板
+                        new OpenLayers.Control.LayerSwitcher(),
+                //显示鼠标当前位置的地理坐标
+                        new OpenLayers.Control.MousePosition()
+                    ]
+
+            });
+
+
+            //初始化瓦片图层对象
+            tilelayer = new Zondy.Map.TileLayer("MapGIS IGServer TileLayer", "WorldJWTile", {
+                //瓦片地图服务器ip
+                ip: "127.0.0.1",
+                //瓦片地图服务端口
+                port: "6163",
+                //瓦片裁剪的原点
+                tileOrigin: new OpenLayers.LonLat(0, 0),
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true,
+                //是否压缩瓦片，默认为false
+                compress: false
+            });
+            //将瓦片图层加载到地图中
+            map.addLayer(tilelayer);
+            //设置地图初始显示级数和中心
+            map.setCenter(new OpenLayers.LonLat(0, 0), 1);
+        });
+
+        /*============================================地图基本操作===================================================*/
+        function zoomOut() {
+            map.zoomOut(); //地图放大一级
+        }
+        function zoomIn() {
+            map.zoomIn(); //地图缩小一级
+        }
+        function reset() {  //地图复位，即缩放到最大范围
+            map.zoomToMaxExtent();
+        }
+        function refresh() { //图层刷新
+            tilelayer.clearGrid();
+            tilelayer.redraw();
+        }
+        function move() {  //鼠标拖拽
+            var dragPan = new OpenLayers.Control.DragPan({ map: map });  //OpenLayers.Util.extend({ map: map }, null)
+            dragPan.draw();
+            dragPan.activate();
+        }
+        function rectZoomIn() { //拉框放大
+            var zoomBox = new OpenLayers.Control.ZoomBox({ map: map });
+            zoomBox.draw();
+            zoomBox.activate();
+        }
+        function rectZoomOut() {  //拉框缩小
+            var zoomBox = new OpenLayers.Control.ZoomBox({ map: map, out: true });
+            zoomBox.draw();
+            zoomBox.activate();
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <span id="title">MapGIS IGServer MapBasicOperation Example</span> <span id="shortdesc">
+            地图基本操作功能</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        地图基本操作功能：</p>
+                    <!--放大-->
+                    <button class="functionButton" id="pzoomin" title="单击放大一级" onclick="zoomIn()">
+                        <img src="../../img/imgForE01MapBasicOperation/1zoomIn.png" alt="" /></button><br />
+                    <!--缩小-->
+                    <button class="functionButton" id="pzoomout" title="单击缩小一级" onclick="zoomOut()">
+                        <img src="../../img/imgForE01MapBasicOperation/2zoomOut.png" alt="" /></button><br />
+                    <!--拉框放大-->
+                    <button class="functionButton" id="czoomin" title="拉框放大地图" onclick="rectZoomIn()">
+                        拉框放大</button><br />
+                    <!--拉框缩小-->
+                    <button class="functionButton" id="czoomout" title="拉框缩小地图" onclick="rectZoomOut()">
+                        拉框缩小</button><br />
+                    <!--移动-->
+                    <button class="functionButton" id="move" title="默认鼠标拖拽" onclick="move()">
+                        <img src="../../img/imgForE01MapBasicOperation/3move.png" alt="" /></button><br />
+                    <!--复位-->
+                    <button class="functionButton" id="reset" title="复位" onclick="reset()">
+                        <img src="../../img/imgForE01MapBasicOperation/4reset.png" alt="" /></button><br />
+                    <!--刷新-->
+                    <button class="functionButton" id="refresh" title="刷新" onclick="refresh()">
+                        <img src="../../img/imgForE01MapBasicOperation/5refresh.png" alt="" /></button>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

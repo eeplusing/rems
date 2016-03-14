@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>设置地图显示样式</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, docLayer;
+        var displayStyle;
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            docLayer = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldJWVector", {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([docLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0),2);
+        }
+        /*=================================================设置地图文档样式==========================================*/
+        function MapDispSetting(element) {
+            if (displayStyle == null) {
+                displayStyle = new Zondy.Object.CDisplayStyle();
+            }
+            switch (element.value) {
+                case "SymbleShow":
+                    if (element.checked) {
+                        displayStyle.SymbleShow = true;
+                    }
+                    else {
+                        displayStyle.SymbleShow = false;
+                    }
+                    break;
+                case "ShowCoordPnt":
+                    if (element.checked) {
+                        displayStyle.ShowCoordPnt = true;
+                    }
+                    else {
+                        displayStyle.ShowCoordPnt = false;
+                    }
+                    break;
+                case "PntSizeFixed":
+                    if (element.checked) {
+                        displayStyle.PntSizeFixed = true;
+                    }
+                    else {
+                        displayStyle.PntSizeFixed = false;
+                    }
+                    break;
+                case "LinSizeFixed":
+                    if (element.checked) {
+                        displayStyle.LinSizeFixed = true;
+                    }
+                    else {
+                        displayStyle.LinSizeFixed = false;
+                    }
+                    break;
+                case "RegSizeFixed":
+                    if (element.checked) {
+                        displayStyle.RegSizeFixed = true;
+                    }
+                    else {
+                        displayStyle.RegSizeFixed = false;
+                    }
+                    break;
+                case "AnnSizeFixed":
+                    if (element.checked) {
+                        displayStyle.AnnSizeFixed = true;
+                    }
+                    else {
+                        displayStyle.AnnSizeFixed = false;
+                    }
+                    break;
+            }
+        }
+        function Submit1_onclick() {
+            if (displayStyle != null) {
+                docLayer.style = displayStyle;
+            }
+            if (map != null) {
+                map.baseLayer.clearGrid();
+                map.baseLayer.redraw();
+            }
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer MapDisplayStyle Example</span> 
+        <span id="shortdesc">设置地图显示样式</span>
+    </div>
+     <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        设置地图显示样式：</p>
+                    <div id="itembox" class="itembox">
+                            <input type="checkbox" name="type" value="SymbleShow" id="SymbleShow" onclick="MapDispSetting(this);"  />
+                            <label for="SymbleShow">是否还原显示</label>
+                        </div>
+                        <div id="Div1" class="itembox">
+                            <input type="checkbox" name="type" value="ShowCoordPnt" id="ShowCoordPnt" onclick="MapDispSetting(this);" />
+                            <label for="ShowCoordPnt">是否显示坐标点</label>
+                        </div>
+                        <div id="Div2" class="itembox">
+                            <input type="checkbox" name="type" value="PntSizeFixed" id="PntSizeFixed" onclick="MapDispSetting(this);" />
+                            <label for="PntSizeFixed">点状符号大小固定</label>
+                        </div>
+                        <div id="Div3" class="itembox">
+                            <input type="checkbox" name="type" value="LinSizeFixed" id="LinSizeFixed" onclick="MapDispSetting(this);" />
+                            <label for="LinSizeFixed">线状符号大小固定</label>
+                        </div>
+                        <div id="Div4" class="itembox">
+                            <input type="checkbox" name="type" value="RegSizeFixed" id="RegSizeFixed" onclick="MapDispSetting(this);" />
+                            <label for="RegSizeFixed">填充符号大小固定</label>
+                        </div>
+                        <div id="Div5" class="itembox">
+                            <input type="checkbox" name="type" value="AnnSizeFixed" id="AnnSizeFixed" onclick="MapDispSetting(this);" />
+                            <label for="AnnSizeFixed">注记符号大小固定</label>
+                        </div>
+                        <input id="Submit1" type="button" class="functionButton" value="提交" onclick="Submit1_onclick()" />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

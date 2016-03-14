@@ -1,0 +1,116 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>更新线要素（矢量图层）示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, vectorLayer;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),                  //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.TouchNavigation({                //控制刷新地图时不用闪烁一次
+                        dragPanOptions: {
+                            enableKinetic: {
+                                deceleration: true
+                            }
+                        }
+                    })
+                ]
+            });
+            //初始化矢量图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", ["gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流"], {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true,
+                transitionEffect: "resize" //刷新地图时不用闪烁一次
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 1);
+        }
+
+        //执行线要素更新功能
+        function updateLine() {
+            var pointObj = new Array();                                         //构成线要素的点
+            pointObj[0] = new Zondy.Object.Point2D(-97.925, -65.75);
+            pointObj[1] = new Zondy.Object.Point2D(-43.325, -54.9);
+            var gArc = new Zondy.Object.Arc(pointObj);                          //构成折线的弧段
+            var gAnyLine = new Zondy.Object.AnyLine([gArc]);                    //构成线的折线
+            var gline = new Zondy.Object.GLine(gAnyLine);                       //设置线要素的几何信息
+            var fGeom = new Zondy.Object.FeatureGeometry({ LinGeom: [gline] }); //设置要素的几何信息
+
+            //设置添加线要素的图形参数信息
+            var clineInfo = new Zondy.Object.CLineInfo({ "Color": 13, "LinStyleID": 0, "LinStyleID2": 1, "LinWidth": 0.800000011920929, "Xscale": 10, "Yscale": 10 }); //设置线要素的图形参数信息
+            var graphicInfo = new Zondy.Object.WebGraphicsInfo({ InfoType: 2, LinInfo: clineInfo }); //设置要素的图形参数信息
+
+            //设置添加线要素的属性信息
+            var attValue = [0, 46.191, 'Huanghe', '', 33, 0, '黄河'];
+
+            //创建一个线要素
+            var newFeature = new Zondy.Object.Feature({ fGeom: fGeom, GraphicInfo: graphicInfo, AttValue: attValue });
+            newFeature.setFType(2); //设置要素为线要素
+            newFeature.setFID(135);
+
+            //创建一个要素数据集
+            var featureSet = new Zondy.Object.FeatureSet(); //创建一个要素数据集
+            var fldNumber = 7;
+            var fldName = ["ID", "长度", "NAME", "SYSTEM", "FID1", "LayerID", "CName"];
+            var fldType = ["long", "double", "string", "string", "long", "long", "string"];
+            var cAttStruct = new Zondy.Object.CAttStruct({ FldName: fldName, FldNumber: fldNumber, FldType: fldType });  //创建属性结构设置对象
+            featureSet.AttStruct = cAttStruct; //设置要素数据集的树形结构
+            featureSet.addFeature(newFeature); //将添加的线要素添加到属性数据集中
+
+            //创建一个地图编辑对象
+            var editLayerFeature = new Zondy.Service.EditLayerFeature("gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流", { ip: "127.0.0.1", port: "6163" });
+            editLayerFeature.update(featureSet, onLineSuccess);
+        }
+
+        //修改线要素回调函数
+        function onLineSuccess(rlt) {
+            var result = rlt;
+            if (result) {
+                alert("修改线要素成功！");
+                map.baseLayer.redraw(true);
+            } else {
+                alert("修改线要素失败！");
+            }
+        }
+    </script>
+</head>
+<body onload="init()">
+  <div id="header">
+        <span id="title">MapGIS IGServer LineUpdateToVectorLayer Example</span> <span id="shortdesc">更新线要素（矢量图层）</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        更新线要素（矢量图层）：</p>
+                    <input type="button" id="updateLineBtn" value="更新" onclick="updateLine()" />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

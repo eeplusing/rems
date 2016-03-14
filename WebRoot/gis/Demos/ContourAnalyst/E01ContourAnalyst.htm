@@ -1,0 +1,665 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>等值线分析</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    <!--等值线分析-->
+    <script src="ContourAnalyse.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================配置参数===================================================*/
+
+        /*
+        *	降雨等值线相关配置
+        *@author fmm 2015-06-30
+        */
+        var JydzxDemo =
+            {
+                GDBSvrName: "MapGISLocal",
+                GDBName: "OpenLayerVecterMap",
+                User: "",
+                Password: "",
+                DsName: "ContourAnalyse",
+                SRSName: ""
+            };
+
+        /*
+        *	服务地址
+        */
+        var SvrCfg =
+            {
+                ip: "127.0.0.1",
+                port: "6163",
+                ClipLayerPath: "gdbp://MapGisLocal/OpenLayerVecterMap/sfcls/广西市级行政区G"
+            };
+
+        /*==========================================底图显示===================================================*/
+        var map, vectorMapdoc, vectLayer;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig:true,   //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),                 //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()                    //鹰眼
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldMKTVector", {
+            //矢量地图文档地图服务器ip
+                ip: SvrCfg.ip,
+                //矢量地图文档地图服务端口
+                port: SvrCfg.port,
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(12008196.042592192, 2719935.2144997073), 6);
+            initDlgRfcontour(); //初始化降雨等值线对话框的内容
+        }
+
+        /*==========================================等值线分析（实时等值线）===================================================*/
+        var attValues = new Array();        //记录降雨量数据数组
+        var pointFeatureSetFA = null;       //添加的降雨数据要素数据集
+        var pointFeatureFA = null;          //添加的降雨数据要素数据
+        var CAttStruct = null;              //添加的降雨数据要素结构设置
+        var RadarLayerName = null;          //创建降雨等值线的图层名称
+        var time = null;                    //根据当前时间生成的时间值，用于标志不同的简单要素类
+        var GdbpTempStr = null;             //简单要素类的地址
+        var wp = null;                      //区简单要素类
+        var wl = null;                      //线简单要素类
+        var wt = null;                      //点简单要素类
+        var resClip = false;                //裁剪分析回调结果
+        var resClipCount = 0;               //裁剪分析次数，一共分析两次，若两次分析结果均成功，则resClip为true
+        var contourType = null;             //分析类型，有等值线分析和等值面分析两种类型
+
+
+       
+        /*
+        *	初始化降雨等值线对话框的内容
+        *@author fmm 2015-06-29
+        */
+        function initDlgRfcontour() {
+            //日期框
+            var dates = $("#dlgRfContour #from,#dlgRfContour #to").datepicker({
+                defaultDate: "+1w",
+                changeMonth: true,
+                yearRange: 'c-150,c+0',
+                showAnim: 'slideDown',
+                changeYear: true,
+                autoSize: true,
+                onSelect: function (selectedDate) {
+                    var option = this.id == "from" ? "minDate" : "maxDate",
+                        instance = $(this).data("datepicker"),
+                        date = $.datepicker.parseDate(
+                            instance.settings.dateFormat ||
+                                $.datepicker._defaults.dateFormat,
+                            selectedDate, instance.settings);
+                    dates.not(this).datepicker("option", option, date);
+                }
+            });
+            var id = dlgRfContour.id, idStr = "#" + id + " ";
+            $(idStr + "#startRf").val(0);
+            $(idStr + "#endRf").val(300);
+            var status = 0,     //等值线分析状态，1表示成功
+                gapValue = 5;       //间隔值，加入此参数的目的是减少发送请求的次数
+            $(idStr + "#gapValue").val(gapValue);
+            $(idStr + ".btn1").click(function () {
+                $(idStr + "#gapValue").val(gapValue);
+                $(idStr + "#startRf").val(0);
+                status = 0;
+                $(idStr + "#endRf").val(300);
+            });
+            //等值线分析
+            $(idStr + "#contourAnalyseBtn1").click(function () {
+                contourAnalyseSubmit();
+                contourType = "dzxfx";
+            });
+
+            //等值面分析
+            $(idStr + "#contourAnalyseBtn2").click(function () {
+                contourAnalyseSubmit();
+                contourType = "dzmfx";
+            });
+
+            //重置分析信息
+            $(idStr + "#contourReset").click(function () {
+                contourReset();
+                contourType = null;
+            });
+        }
+
+        /*
+        *	重置等值线分析，清除分析数据
+        *@author fmm 2015-07-06
+        */
+        function contourReset() {
+            clearDzxLayer();    //清除等值线分析的图层
+
+            //日期框
+            var dates = $("#dlgRfContour #from,#dlgRfContour #to").datepicker({
+                defaultDate: "+1w",
+                changeMonth: true,
+                yearRange: 'c-150,c+0',
+                showAnim: 'slideDown',
+                changeYear: true,
+                autoSize: true,
+                onSelect: function (selectedDate) {
+                    var option = this.id == "from" ? "minDate" : "maxDate",
+                        instance = $(this).data("datepicker"),
+                        date = $.datepicker.parseDate(
+                            instance.settings.dateFormat ||
+                                $.datepicker._defaults.dateFormat,
+                            selectedDate, instance.settings);
+                    dates.not(this).datepicker("option", option, date);
+                }
+            });
+            var id = dlgRfContour.id, idStr = "#" + id + " ";
+            $(idStr + "#startRf").val(0);
+            $(idStr + "#endRf").val(300);
+            var status = 0,     //等值线分析状态，1表示成功
+                gapValue = 5;       //间隔值，加入此参数的目的是减少发送请求的次数
+            $(idStr + "#gapValue").val(gapValue);
+            $("#dlgRfContour #from").val("2006-05-04");
+            $("#dlgRfContour #to").val("2006-05-07");
+        }
+
+        /*
+        *	清除等值线分析图层
+        *@author fmm 2015-07-06
+        */
+        function clearDzxLayer() {
+            var layers = map.getLayersByName("等值线图层");
+            if (layers != null) {
+                for (var i = 0; i < layers.length; i++) {
+                    map.removeLayer(layers[i]);
+                }
+            }
+        }
+
+        /*
+        *	进行等值线分析，根据生成等值线的界面传参，获取等值线间隔以及起始/终止日期，根据这些
+        *数，调用WCF服务，进行等值线分析，成功则返回生成的等值线图层信息的json字符串
+        *@author fmm 2015-06-29
+        */
+        function contourAnalyseSubmit() {
+            clearDzxLayer();        //清除原有的等值线分析图层
+            var id = dlgRfContour.id, idStr = "#" + id + " ";
+            var type = $(idStr + "input[name=resultType]:checked").val();
+            var gap = $(idStr + "#gapValue").val();
+            var startDay = $(idStr + "#from").val();
+            var packData = "gap=" + encodeURI(gap) + "&startRf=" + encodeURI($(idStr + "#startRf").val()) + "&endRf=" + encodeURI($(idStr + "#endRf").val()) + "&startDay=" + encodeURI(startDay);
+            if (type == "0") {
+                packData += "&type=" + encodeURI(type);
+
+            } else {
+                var endDay = $(idStr + "#to").val();
+                packData += "&endDay=" + encodeURI(endDay);
+                packData += "&type=" + encodeURI(type);
+            }
+            addLoadingByContourAnalyse();       //添加进度条
+            var urlStr = encodeURI("Handler.ashx?method=jydzx&" + Math.random());
+            var data = '{"paraStr":"' + packData + '"}';
+            var service = new Zondy.Service.HttpRequest();
+            service.ajax(urlStr, data, onGetInfoToCreateLayer, "POST");
+        }
+
+        /*
+        *	获取图层信息回调方法
+        *@author fmm 2015-06-30
+        */
+        function onGetInfoToCreateLayer(data) {
+            $("#BufferLoadingText").text("获取图层信息成功，正在创建图层！");
+            if (attValues != null) {
+                attValues = new Array();
+            }
+            for (var i = 0; i < data.length; i++) {
+                var attValue = new Object();        //记录降雨量数据
+                attValue.X = data[i].Lon;
+                attValue.Y = data[i].Lat;
+                attValue.FiledValue = [data[i].STCD, data[i].Rainfall];
+                attValues.push(attValue);
+            }
+            createRadarLayer();
+        }
+
+        /*
+        *	调用rest创建新的图层，两步操作，第一：创建一个简单要素类，第二：向简单要素类里面添加数据
+        *@author fmm 2015-06-30
+        */
+        function createRadarLayer() {
+            //第一步：创建一个简单要素类
+            var urlStr = "http://127.0.0.1:6163/igs/rest/mrcs/creatlayer";
+            RadarLayerName = "Radar_" + new Date().format("yyyyMMddhhmmss");
+            var data = {
+                "DsName": JydzxDemo.DsName,
+                "SRSName": JydzxDemo.SRSName,
+                "MapLayer": {
+                    "gdbInfo": {
+                        "GDBSvrName": JydzxDemo.GDBSvrName,
+                        "GDBName": JydzxDemo.GDBName,
+                        "User": JydzxDemo.User,
+                        "Password": JydzxDemo.Password
+                    },
+                    "attStruct": {
+                        "FldName": [
+                            "STCD",
+                            "Rainfall"
+                        ],
+                        "FldNumber": "2",
+                        "FldType": [
+                            "string",
+                            "double",
+                        ]
+                    },
+                    "xClsType": "SFeatureCls",
+                    "stype": "Pnt",
+                    "layerName": RadarLayerName
+                }
+            };
+            var service = new Zondy.Service.HttpRequest();
+            service.ajax(urlStr, data, onCreateLayer, "POST");
+        }
+
+
+        /*
+        *	创建图层成功后的回调方法，将图层信息添加到新创建的简单要素类中
+        *@author fmm 2015-06-30
+        */
+        function onCreateLayer(data) {
+            if (data) {
+                $("#BufferLoadingText").text("创建图层成功，正在添加数据！");
+                ProjectDots();
+            }
+        }
+
+        /*
+        *	点投影转换，将经纬度坐标转成墨卡托坐标
+        *@author fmm 2015-07-02
+        */
+        function ProjectDots() {
+            //需要投影转换的点数组
+            var dots = new Array();
+            for (var i = 0; i < attValues.length; i++) {
+                var dot = new Zondy.Object.Point2D(attValues[i].X, attValues[i].Y);
+                dots.push(dot);
+            }
+
+            //设置源投影参数
+            var srcProjParam = new Zondy.Service.CProjectParam({
+                ProjAngleUnit: 4,
+                ProjType: 1,
+                ProjTypeID: 0,
+                ProjUnit: 0,
+                ProjZoneNO: 2,
+                ProjZoneType: 0,
+                SphereID: 1
+            });
+            //设置目的投影参数
+            var desProjParam = new Zondy.Service.CProjectParam({
+                ProjAngleUnit: 4,
+                ProjType: 3,
+                ProjTypeID: 4,
+                ProjUnit: 2,
+                ProjZoneType: 1,
+                SphereID: 7,
+                ProjRate: 1,
+                ProjLon: 0
+            });
+
+            //设置投影转换源投影参数
+            var projectParam = new Zondy.Service.ProjectDots(
+                dots,           //设置需要投影转换的点数组
+                srcProjParam,   //设置源投影参数
+                desProjParam,   //设置目的投影参数
+                {ip: SvrCfg.ip, port: SvrCfg.port, resultFormat: "json"}    //设置Options参数,包括服务器地址、端口号、返回结果格式
+            );
+            //调用execute方法，执行点投影转换功能服务，并返回结果信息，onSuccess为回调函数
+            projectParam.execute(projSuccess);
+        }
+
+        /*
+        *	投影成功回调函数，将投影之后的数据添加到创建的简单要素类中
+        *@author fmm 2015-07-02
+        */
+        function projSuccess(data) {
+            CAttStruct = new Zondy.Object.CAttStruct({ FldName: ["STCD", "Rainfall"], FldNumber: 2, FldType: ["string", "double"] }); //设置属性结构
+            pointFeatureSetFA = new Zondy.Object.FeatureSet(); //创建要素集
+            pointFeatureSetFA.clear(); //还原当前对象的属性设置
+            pointFeatureSetFA.AttStruct = CAttStruct; //设置属性结构
+
+            for (var i = 0; i < data.DesDots.length; i++) {
+                var gpoint = new Zondy.Object.GPoint(data.DesDots[i].x, data.DesDots[i].y);
+                var fGeom = new Zondy.Object.FeatureGeometry({ PntGeom: [gpoint] });
+                var pointInfo = new Zondy.Object.CPointInfo({ Color: 11 });  //描述点要素的符号参数信息
+                var webGraphicInfo = new Zondy.Object.WebGraphicsInfo({ InfoType: 1, PntInfo: pointInfo }); //设置当前点要素的图形参数信息
+                var attValue = [attValues[i].FiledValue[0], attValues[i].FiledValue[1]];
+                pointFeatureFA = new Zondy.Object.Feature({ fGeom: fGeom, GraphicInfo: webGraphicInfo, AttValue: attValue }); //创建一个要素
+                pointFeatureFA.setFType(1); //Zondy.Enum.FeatureType类型，点：1，线：2，区：3
+                pointFeatureSetFA.addFeature(pointFeatureFA); //添加点要素
+            }
+            //创建一个编辑服务类
+            var layerName = "gdbp://" + JydzxDemo.GDBSvrName + "/" + JydzxDemo.GDBName + "/ds/" + JydzxDemo.DsName + "/sfcls/" + RadarLayerName;
+            var editService = new Zondy.Service.EditLayerFeature(layerName, { ip: "127.0.0.1", port: "6163" });
+            editService.add(pointFeatureSetFA, RfContourAnalyse);
+        }
+
+        /*
+        *	执行等值线分析
+        *@author fmm 2015-06-30
+        */
+        function RfContourAnalyse(data) {
+            $("#BufferLoadingText").text("添加数据成功，正在进行数据离散化！");
+            var id = dlgRfContour.id, idStr = "#" + id + " ";
+            var gap = $(idStr + "#gapValue").val();         //降雨间隔
+            var startRf = $(idStr + "#startRf").val();      //起始雨量
+            var endRf = $(idStr + "#endRf").val();          //终止雨量
+
+            var t = 0;
+            if (gap == 0) {
+                gap = 1;
+            }
+            t = parseInt((endRf - startRf) / gap + 0.5);
+
+            time = new Date().format("yyyyMMddhhmmss");
+            GdbpTempStr = "gdbp://MapGisLocal/" + JydzxDemo.GDBName + "/ds/" + JydzxDemo.DsName + "/";
+            wp = GdbpTempStr + "sfcls/ContourP_" + time;
+            wl = GdbpTempStr + "sfcls/ContourL_" + time;
+            wt = GdbpTempStr + "acls/ContourT_" + time;
+
+            //创建一个离散数据网格化参数类
+            var mp = new ContourLine.MeshingParam();
+            var layerName = "gdbp://" + JydzxDemo.GDBSvrName + "/" + JydzxDemo.GDBName + "/ds/" + JydzxDemo.DsName + "/sfcls/" + RadarLayerName;
+            mp.SfClsURL = layerName;
+            mp.FieldName = "Rainfall";
+            mp.XCellNum = 400;
+            mp.Bound = null;
+            var mpStr = JSON.stringify(mp);
+
+            //创建一个平面等值线追踪所用到的注记参数类
+            var cp = new ContourLine.ContourParam();
+            var zValues = new Array();
+
+            for (var i = 0; i < t; i++) {
+                var z = new ContourLine.ContourZValue();
+                z.ZValue = i * gap;
+                z.LineInfo = new ContourLine.CLineInfo();
+                z.LineInfo.Color = i * parseInt(gap) + 9;
+                z.LineInfo.LinStyleID = 1;
+                z.LineInfo.LinWidth = 0.02;
+                z.RegInfo = new ContourLine.CRegionInfo();
+                z.RegInfo.FillColor = i * parseInt(gap) + 4;
+                z.RegInfo.FillMode = 0;
+                z.RegInfo.PatID = 0;
+                z.IsOutputNote = true;
+                zValues.push(z);
+            }
+            cp.ZValues = zValues;
+            var noteParam = new ContourLine.ContourNoteParam();
+            noteParam.MinDist = 0.1;
+            cp.NoteParam = noteParam;
+            var slopLineParam = new ContourLine.SlopLineParam();
+            cp.SlopLineParam = slopLineParam;
+            cp.IsMakeNote = true;
+            cp.IsMakeReg = true;
+            var cpStr = JSON.stringify(cp);
+
+            var obj = {
+                "linSfclsURL": wl,
+                "regSfclsURL": wp,
+                "annoClsURL": wt,
+                "meshingParam": mpStr,
+                "contourParam": cpStr
+            };
+
+            var workFlowID = "600320";
+            var param = [{ "Key": "linSfclsURL", "Value": obj.linSfclsURL }, { "Key": "regSfclsURL", "Value": obj.regSfclsURL }, { "Key": "annoClsURL", "Value": obj.annoClsURL }, { "Key": "meshingParam", "Value": obj.meshingParam }, { "Key": "contourParam", "Value": obj.contourParam}];
+            ExecuteFlow(workFlowID, param);
+        }
+
+        /*
+        *	执行等值线分析工作流
+        *param {string} workFlowID工作流id
+        *param {object} obj 工作流流程参数列表
+        *@author fmm 2015-07-01
+        */
+        function ExecuteFlow(workFlowID, param) {
+            var urlStr = "http://" + SvrCfg.ip + ":" + SvrCfg.port + "/igs/rest/mrfws/execute/" + workFlowID + "?f=json";
+            var service = new Zondy.Service.HttpRequest();
+            switch (workFlowID) {
+            case "600320":
+                service.ajax(urlStr, param, onContourAnalyse, "POST");
+                break;
+            case "600230":
+                service.ajax(urlStr, param, onClipLayer, "POST");
+                break;
+            default:
+            }
+        }
+
+        /*
+        *	执行降雨等值线工作流分析回调方法，在分析成功之后需要进行裁剪
+        *@author fmm 2015-07-01
+        */
+        function onContourAnalyse(data) {
+            if (data != null && data.results != null && data.results[0].Value == '0') {
+                $("#BufferLoadingText").text("正在进行等值线分析！");
+                var resClip = ClipLayer();
+            }
+        }
+
+        /*
+        *	对分析结果进行裁剪
+        *@author fmm 2015-07-01
+        */
+        function ClipLayer() {
+            var wpClip = GdbpTempStr + "sfcls/AnalyseLayerP_" + time;
+            var wlClip = GdbpTempStr + "sfcls/AnalyseLayerL_" + time;
+
+            var workFlowID = "600230";
+            if (contourType == "dzxfx") {
+                var param2 = [{ "Key": "srcInfo1", "Value": wl }, { "Key": "srcInfo2", "Value": SvrCfg.ClipLayerPath }, { "Key": "desInfo", "Value": wlClip}];
+                ExecuteFlow(workFlowID, param2);    //裁剪线图层
+            } else if (contourType == "dzmfx") {
+                var param1 = [{ "Key": "srcInfo1", "Value": wp }, { "Key": "srcInfo2", "Value": SvrCfg.ClipLayerPath }, { "Key": "desInfo", "Value": wpClip}];
+                ExecuteFlow(workFlowID, param1);    //裁剪区图层
+            }
+        }
+
+        /*
+        *	裁剪分析回调方法
+        *@author fmm 2015-07-01
+        */
+        function onClipLayer(data) {
+            var resparam = new ContourLine.ResultParam();
+            if (data != null && data.results[0].Value != null) {
+                $("#BufferLoadingText").text("正在进行裁剪图层！");
+                if (contourType == "dzxfx") {
+                    var wlClip = GdbpTempStr + "sfcls/AnalyseLayerL_" + time;
+                    var rct = new ContourLine.ResultContour(SvrCfg.ip, SvrCfg.port, null, wlClip);
+                    resparam.isSuccess = "0";
+                    resparam.resultContour = rct;
+                    onGetContourAnalyseLayers(resparam);
+                } else if (contourType == "dzmfx") {
+                    var wpClip = GdbpTempStr + "sfcls/AnalyseLayerP_" + time;
+                    var rct = new ContourLine.ResultContour(SvrCfg.ip, SvrCfg.port, wpClip, null);
+                    resparam.isSuccess = "0";
+                    resparam.resultContour = rct;
+                    onGetContourAnalyseLayers(resparam);
+                }
+            } else {
+                resparam.isSuccess = "1";
+                onGetContourAnalyseLayers(resparam);
+            }
+        }
+
+        /*
+        *	进行等值线分析的回调函数，该函数通过处理返回的json字符串，得到相应图层的URL，并把这些图层加载到地图容器中加以显示
+        *@author fmm 2015-07-02
+        */
+        function onGetContourAnalyseLayers(resdata) {
+            $("#BufferLoading").remove();
+            $("#dlgMaskTop").remove();
+            if (resdata != null && resdata != "") {
+                if (resdata.isSuccess == "0") {
+                    $("#BufferLoadingText").text("图层加载成功！");
+                    var rcdData = resdata.resultContour;
+                    var GISSrcIP = rcdData.ip;
+                    var GISSrcPort = rcdData.port;
+                    if (contourType == "dzxfx" && map != null) {
+                        var wlPath = rcdData.wl;
+                        var layerL = new Zondy.Map.Layer("等值线图层", [wlPath], { isBaseLayer: false, ip: GISSrcIP, port: GISSrcPort, displayInLayerSwitcher: false });
+                        map.addLayer(layerL);
+                    } else if (contourType == "dzmfx" && map != null) {
+                        var wpPath = rcdData.wp;
+                        var layerP = new Zondy.Map.Layer("等值线图层", [wpPath], { isBaseLayer: false, ip: GISSrcIP, port: GISSrcPort, displayInLayerSwitcher: false });
+                        map.addLayer(layerP);
+                    }
+                } else {
+                    alert("等值线分析失败,请检查参数设置是否正常！");
+                }
+            }
+        }
+
+        /*
+        *	添加进度条
+        *@author fmm 2015-06-29
+        */
+        function addLoadingByContourAnalyse() {
+            var lx = $("#mapCon").width / 2 - 85;
+            var ly = $("#mapCon").height / 2;
+            $("#BufferLoading").remove();
+            $("#dlgMaskTop").remove();
+            var sbLogoStr = '<div id="dlgMaskTop" class="dlgMaskTop"></div>';
+            sbLogoStr += '<div id="BufferLoading" style="z-index:5000;position:absolute;left:' + lx + 'px;bottom:0px"><div><img style="width:100px;height:20px;" src="../../img/imgForE01ContourAnalyst/loading.gif"></img></div><div id="BufferLoadingText" style="font:微软雅黑;font-size:14px;font-weight:bold;color:Gray">开始进行等值线分析,请稍候...</div></div>';
+            $("#mapCon").append(sbLogoStr);
+        }
+        /*==========================================实时等值线分析end===============================================*/
+
+        /*==========================================时间格式化===============================================*/
+        //时间格式化
+        Date.prototype.format = function (format) {
+            var o = {
+                "M+": this.getMonth() + 1, //month
+                "d+": this.getDate(), //day
+                "h+": this.getHours(), //hour
+                "m+": this.getMinutes(), //minute
+                "s+": this.getSeconds(), //second
+                "q+": Math.floor((this.getMonth() + 3) / 3), //quarter
+                "S": this.getMilliseconds() //millisecond
+            };
+            if (/(y+)/.test(format))
+                format = format.replace(RegExp.$1,
+                    (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+            for (var k in o)
+                if (new RegExp("(" + k + ")").test(format))
+                    format = format.replace(RegExp.$1,
+                        RegExp.$1.length == 1 ? o[k] :
+                            ("00" + o[k]).substr(("" + o[k]).length));
+            return format;
+        };
+
+        /*
+        *	时间格式化
+        */
+        function formatDate(val) {
+            var re = /-?\d+/;
+            var m = re.exec(val);
+            var d = new Date(parseInt(m[0]));
+            // 按【2012-02-13 09:09:09】的格式返回日期
+            return d.format("yyyy-MM-dd");
+        }
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer ContourAnalyst Example</span> <span id="shortdesc">
+            等值线分析</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelConForContourAnalysis">
+                <div id="toolspanel">
+                            <!--设置地图文档名称-->
+                            <p>
+                                实时等值线:<br /><br/>
+                                <span>（说明：调用工作流实现实时生成等值线）</span><br />
+                            </p>
+                            <hr />
+                            <!--设置地图在地图文档中的序号-->
+                            <div id="dlgRfContour">
+                                <div id="itembox" class="itembox">
+                                    <div>
+                                        <label class="rowTitle">
+                                            等值线类型：</label><br />
+                                        <input id="rdResult0" type="radio" name="resultType" value="0" checked="checked" /><label
+                                            for="rdResult0">单日降雨量</label>
+                                        <input id="rdResult1" type="radio" name="resultType" value="1" /><label for="rdResult1">累计降雨量</label>
+                                    </div>
+                                    <br />
+                                    <div>
+                                        <label class="rowTitle">
+                                            选择日期：</label><br />
+                                        <input id="from" class="timeInput" name="from" type="text" value="2006-05-04 " /><label
+                                            class="dateLine" style="width: 9px;">--</label>
+                                        <input id="to" class="timeInput" name="to" type="text" value="2006-05-07" />
+                                    </div>
+                                    <br />
+                                    <div>
+                                        <label class="rowTitle">
+                                            降雨量起始值：</label><br />
+                                        <input id="startRf" class="timeInput" type="text" /><label class="dateLine" style="width: 9px;">--</label>
+                                        <input id="endRf" class="timeInput" type="text" />
+                                    </div>
+                                    <br />
+                                    <div>
+                                        <label class="rowTitle">
+                                            等值线间隔值：</label>
+                                        <input id="gapValue" class="timeInput" type="text" />
+                                    </div>
+                                    <br />
+                                </div>
+                                <div>
+                                    <button id="contourAnalyseBtn1" class="functionButton">
+                                        等值线分析</button>
+                                    <button id="contourAnalyseBtn2" class="functionButton">
+                                        等值面分析</button>
+                                    <button id="contourReset" class="functionButton">
+                                        重置</button></div>
+                            </div>
+                        </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

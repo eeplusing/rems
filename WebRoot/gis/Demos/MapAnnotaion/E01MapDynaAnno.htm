@@ -1,0 +1,242 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+     <title>地图动态注记</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, docLayer,vectorLayer;
+        var cDisplayStyle = null; // 地图显示参数对象
+        var dynShowStyle = null; //地图动态注记对象
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                numZoomLevels: 10,                                          //地图的缩放级别
+                maxExtent: new OpenLayers.Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34),       //地图的最大范围
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),                  //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()
+                ]
+            });
+
+            docLayer = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "testDynAno", {   //初始化地图文档图层对象
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+
+            map.addLayers([docLayer]);                       //将地图文档图层加载到地图中
+            map.setCenter(new OpenLayers.LonLat(0, 0), 3);   //设置地图的初始化显示中心和级别
+        }
+
+        /*============================================动态注记设置===================================================*/
+        function MapDispSetting(element) {
+            if (cDisplayStyle == null) {
+                cDisplayStyle = new Zondy.Object.CDisplayStyle();
+            }
+
+            if (element.checked) {
+                //描述点要素的符号参数信息
+//                var cPointInfo = new Zondy.Object.CPointInfo({
+//                    Angle: 0,    //子图角度
+//                    Color: 23,   //子图颜色
+////                    Space: 0,
+//                    SymHeight: 12, // 子图高度
+//                    SymID: 7,      // 子图ID
+//                    SymWidth: 12   //子图宽度
+//                });
+                //设置线要素的图形参数信息
+//                var cLineInfo = new Zondy.Object.CLineInfo({
+//                    Color: 23,       //线颜色
+//                    LinStyleID: 10,  //线型ID
+//                    LinStyleID2: 1,  //辅助线型ID
+//                    LinWidth: 10.800000011920929,  //线宽度
+//                    Xscale: 10,   //x比例系数
+//                    Yscale: 10   // y比例系数
+//                });
+                //区形状图形参数信息
+//                var cRegionInfo = new Zondy.Object.CRegionInfo({
+//                    EndColor: 1,   //结束填充色
+//                    FillColor: 8,   //填充颜色
+//                    FillMode: 0,    //填充模式
+//                    OutPenWidth: 1,  //填充图案笔宽
+////                    OverMethod: 0,
+//                    PatAngle: 1,     //填充图案角度
+//                    PatColor: 1,     //填充图案颜色
+//                    PatHeight: 1,    //填充图案高度
+//                    PatID: 27,       //填充图案ID
+//                    PatWidth: 1       //填充图案宽度
+//                }); 
+
+                var labelPntInfo = new Zondy.Object.LabelPntInfo({
+                    Ang: null,                      //动态注记方位角度值
+                    ClientOutLabel: true,           //是否不完全注记
+                    Distance: 1.0,                 //注记偏离要素的距离
+                    EightDirLableType: [7,1],        //注记方位优先级组合
+                    PntType: 2                      //点动态注记方位类型
+                });
+
+//                var labelLinInfo = new Zondy.Object.LabelLinInfo({
+//                    ClientOutLabel: false,          //是否不完全注记
+//                    DistFromLine: 0.00,             //注记偏离线的距离
+//                    FromLineConstrain: 5,           //注记偏离线约束。5表示没有约束
+//                    Interval: 0.00,                 //线重复注记每段的长度
+//                    LinType: 2,                     //线方位类型，参见Zondy.Enum.LableLinType。2表示水平
+//                    Repeat: 0,                      //线重复策略
+//                    SpreadType: null                //注记分布的策略
+//                });
+
+//                var labelRegInfo = new Zondy.Object.LabelRegInfo({
+//                    ClientOutLabel: false,          //是否不完全注记
+//                    LabelMiniRegion: 0,             //是否尝试水平注记微小区
+//                    MayPlaceOutside: 0,             //是否可以注记在外部
+//                    MiniRegionArea: 0,              //微小区最大面积
+//                    Offset: 0.00,                   //注记偏移距离
+//                    RegType: 0                      //区方位类型
+//                });
+
+                var dynNoteLabelType = new Zondy.Object.DynNoteLabelType({
+                    PntInfo: labelPntInfo          //点要素动态注记方位属性
+//                    LineInfo: labelLinInfo           //线要素动态注记方位属性。因设置动态注记的为线图层，故对应要设置的是线要素动态注记方位属性
+//                    RegInfo: labelRegInfo             //线要素动态注记方位属性
+                }); //创建一个点要素动态注记方位属性
+
+                var cDynNoteInfo = new Zondy.Object.CDynNoteInfo({      //创建一个CDynNoteInfo对象
+//                    Angle: 30.00,                                       //动态注记字符串角度
+//                    Backclr: 12,                                        //注记背景颜色编号
+//                    Backexp: 10.00,                                     //注记轮廓宽度
+//                    Bold: 1,                                            //注记加粗
+                    FieldName: "NAME",                               //注记字段名称
+//                    FontAngle: 0.00,                                    //注记字体角度
+//                    FontColor: 1,                                       //注记颜色
+                    FontSize: 14,                                      //注记字体大小
+//                    FontStyle: 0,                                      //注记西文字体id
+//                    ifnt: 5,                                           //注记中文字体id
+//                    ifnx: 3,                                            //注记字形状
+//                    isFilled: true,                                     //是否填充背景色
+//                    isHzpl: false,                                      //是否水平线上
+//                    IsOvptnt: false,                                    //注记覆盖方式
+//                    LabelLevel: 1,                                      //注记冲突策略（注记优先级）
+                    LableType: dynNoteLabelType                        //注记方位属性
+//                    Offsetx: 0.00,                                      //x方向的偏移
+//                    Offsety: 0.00,                                      //y方向的偏移
+//                    Space: 0.00,                                        //注记字的间距
+//                    StrikeThrough: 0,                                   //注记删除线
+//                    UnderLine: 0,                                       //注记下划线
+//                    MaxScale: 0,                                        //动态注记显示最大比率
+//                    MinScale: 0                                  //动态注记显示最小比率，默认为0，表示无限制
+                });
+
+                dynShowStyle = new Zondy.Object.DynShowStyle({      //创建一个DynShowStyle对象
+//                    Alpha: 0,                                           //设置透明度
+//                    BugSpare: false,                                    //是否使用错误处理符号
+//                    CustomRender: false,                                //是否自绘驱动
+//                    CustomRenderPath: null,                             //自绘驱动路径设置
+//                    IsShowLineDirection: true,                          //是否显示线方向
+//                    DirectionLineClr: 1,                                //线方向符号的颜色
+                    DynNoteFlag: true,                                  //是否显示动态注记
+                    DynNoteInfo: cDynNoteInfo                          //设置显示的动态注记参数
+//                    IsShowArc: 1,                                       //设置填充区域的显示样式
+//                    LineInfo: cLineInfo,                                //设置填充边线的样式
+//                    MaxScale: 0,                                        //图层显示最大比率
+//                    MinScale: 0,                                        //图层显示最小比率
+//                    ShowCoordPnt: true,                                 //是否显示坐标点
+//                    SpareLineInfo: cLineInfo,                           //错误处理线符号
+//                    SparePointInfo: cPointInfo,                         //错误处理点符号
+//                    SpareRegInfo: cRegionInfo,                          //错误处理区符号
+//                    SymbleScale: 1                                      //符号显示比例
+                });
+
+                
+            }//if checked
+            else {
+                dynShowStyle.DynNoteFlag = false; //设置不显示动态标记
+            }
+
+            var dynShowStyleArr = new Array(); //图层显示样式数组，按顺序每个数组元素依次对应一个图层的样式
+            //            dynShowStyleArr.push(null, null, dynShowStyle, null, null, null, null);
+            dynShowStyleArr.push(dynShowStyle);
+            cDisplayStyle = new Zondy.Object.CDisplayStyle({    //创建一个CDisplayStyle对象
+//                AnnSizeFixed: false,                                //注记符号大小是否固定
+//                DriverQuality: 3,                                   //图像质量
+//                DynProjFlag: false,                                 //是否进行动态投影
+//                FollowScale: false,
+//                LinPenWidFixed: false,                              //线状符号线宽是否固定
+//                LinSizeFixed: false,                                //线状符号大小是否固定
+//                PntPenWidFixed: false,                              //点状符号线宽是否固定
+//                PntSizeFixed: false,                                //点状符号大小是否固定
+//                RegPenWidFixed: false,                              //区填充符号线宽是否固定
+//                RegSizeFixed: false,                                //区填充符号大小是否固定
+//                ShowCoorPnt: true,                                  //是否显示坐标点
+//                ShowElemRect: false,                                //是否显示外包矩形
+                ShowStyle: dynShowStyleArr                           //图层显示样式
+//                SymbleShow: true                                    //是否进行还原显示
+            });
+
+        }
+        function Submit1_onclick() {
+            if (document.getElementById('dynaAnno').checked) {
+                if (cDisplayStyle != null) {
+                    docLayer.style = cDisplayStyle; //设置矢量图层的动态注记
+                    docLayer.redraw(true);
+                }
+                
+            } //if (document.getElementById('dynaAnno').checked) 
+            else {
+                docLayer.redraw(true);
+            }
+        }
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer MapDynamicAnnotation Example</span> 
+        <span id="shortdesc">基于矢量地图实现动态注记（显示某一图层的动态注记）</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        地图动态注记：</p>
+                    <div id="itembox">
+                            <input type="checkbox" name="type" value="dynaAnno" id="dynaAnno" onclick="MapDispSetting(this);" />
+                            <label for="dynaAnno">
+                                是否动态注记</label>
+                        </div>
+                        <button id="Submit1" class="functionButton" onclick="Submit1_onclick()">
+                            提交</button>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

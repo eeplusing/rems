@@ -1,0 +1,215 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>自定义控件示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--中地自定义控件-->
+    <link href="../../Libs/zondy-style-thin.css" rel="stylesheet" type="text/css" />
+    <script src="../../Libs/zdcontrol.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorLayer;
+
+        //地图初始化函数
+        $(function () {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                //地图常用工具控件
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(), //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(), //图层切换控件
+                    new OpenLayers.Control.Navigation(), //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),  //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()     //鹰眼
+                ]
+            });
+
+            //初始化矢量图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", ["gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界政区"], {
+                //矢量图层地图服务器ip
+                ip: "127.0.0.1",
+                //矢量图层地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true
+            });
+
+            //将矢量图层加载到地图中
+            map.addLayers([vectorLayer]);
+
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+        });
+
+        /*=============================================================================================*/
+        function removeOld() {
+            if (map.controls != null && map.controls.length > 0) {
+                var controlNum = map.controls.length;
+                for (var i = 0; i < controlNum; i++) {
+                    map.removeControl(map.controls[i]);
+                }
+            }
+            removeOld();
+        }
+
+        function update(element) {
+            if (element == null) {
+                return;
+            }
+            switch (element.id) {
+                case "LayerSwitcher":
+                    if (element.checked) {
+                        var layerSwitcher = new Zondy.Control.LayerSwitcher(); //自定义图层列表控件
+                        map.addControl(layerSwitcher);
+                        document.getElementById("LayerSwitcher").value = layerSwitcher.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+                case "PanZoomBar":
+                    if (element.checked) {
+                        var ovControl = new Zondy.Control.PanZoomBar(); //自定义导航控件
+                        map.addControl(ovControl);
+                        document.getElementById("PanZoomBar").value = ovControl.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+                case "ScaleBar":
+                    if (element.checked) {
+                        var scaleControl = new Zondy.Control.ScaleBar(); //自定义比例尺控件
+                        map.addControl(scaleControl);
+                        document.getElementById("ScaleBar").value = scaleControl.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+                case "Magnify":
+                    if (element.checked) {
+                        var magnify = new Zondy.Control.Magnifier({ maxExtent: new OpenLayers.Bounds(114.125602, 30.453932, 114.500707, 30.829037), maxResolution: 0.00146525390625 });
+                        map.addControl(magnify);
+                        document.getElementById("Magnify").value = magnify.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+
+                case "OverviewMap":
+                    if (element.checked) {
+                        var overviewMap = new Zondy.Control.OverviewMap();
+                        map.addControl(overviewMap);
+                        overviewMap.maximizeControl();
+                        document.getElementById("OverviewMap").value = overviewMap.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+                case "LegendBar":
+                    if (element.checked) {
+                        var legendBar = new Zondy.Control.LegendBar(); //自定义图例控件
+                        var legendMark1 = new Zondy.Control.LegendMark("../../lib/img/slider.png", "线路1");
+                        legendBar.addLegendMark(legendMark1); //图例项
+                        var legendMark2 = new Zondy.Control.LegendMark("../../lib/img/slider.png", "线路2");
+                        legendBar.addLegendMark(legendMark2); //图例项
+                        var legendMark3 = new Zondy.Control.LegendMark("../../lib/img/slider.png", "线路3");
+                        legendBar.addLegendMark(legendMark3); //图例项
+                        map.addControl(legendBar);
+                        document.getElementById("LegendBar").value = legendBar.id;
+
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+                case "RightcLickMenu":
+                    if (element.checked) {
+                        var rightMenu = new Zondy.Control.RightClickMenu();  //自定义右键菜单控件
+                        map.addControl(rightMenu);
+                        document.getElementById("RightcLickMenu").value = rightMenu.id;
+                    }
+                    else {
+                        removeUserControl(element.value);
+                    }
+                    break;
+            }
+        }
+
+        function removeUserControl(id) {
+            var temControl = map.getControl(id);
+            if (temControl != null) {
+                map.removeControl(temControl);
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="header">
+        <span id="title">MapGIS IGServer UserDefineControls Example</span> <span id="shortdesc">
+            用户自定义控件(导航条、比例尺、图例、放大镜、量测、鹰眼、图层显示)</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        用户自定义控件：</p>
+                    <div id="itembox" class="itembox">
+                        <input id="LayerSwitcher" value="" type="checkbox" onchange="update(this)" />
+                        <label for="LayerSwitcher">
+                            图层显示</label>
+                    </div>
+                    <div id="Div1" class="itembox">
+                        <input id="PanZoomBar" value="" type="checkbox" onchange="update(this)" />
+                        <label for="PanZoomBar">
+                            导航条</label>
+                    </div>
+                    <div id="Div2" class="itembox">
+                        <input id="ScaleBar" value="" type="checkbox" onchange="update(this)" />
+                        <label for="ScaleBar">
+                            比例尺</label>
+                    </div>
+                    <!--<div id="Div3" class="itembox">
+                        <input id="Magnify" value="" type="checkbox" onchange="update(this)" />
+                        <label for="Magnify">
+                            放大镜</label>
+                    </div>
+                    <div id="Div4" class="itembox">
+                        <input id="OverviewMap" value="" type="checkbox" onchange="update(this)" />
+                        <label for="OverviewMap">
+                            鹰眼</label>
+                    </div>-->
+                    <div id="Div5" class="itembox">
+                        <input id="LegendBar" value="" type="checkbox" onchange="update(this)" />
+                        <label for="LegendBar">
+                            图例</label>
+                    </div>
+                    <div id="Div6" class="itembox">
+                        <input id="RightcLickMenu" value="" type="checkbox" onchange="update(this)" />
+                        <label for="RightcLickMenu">
+                            右键菜单</label>
+                    </div>
+                    <button id="Checkbox8" class="functionButton" onclick=" removeOld()">
+                        移除控件</button>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

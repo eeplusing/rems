@@ -1,0 +1,417 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>画圆+属性查询（矢量图层）</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    
+     <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        //地图配置参数
+        var SvrCfg = {
+            ip: "127.0.0.1",
+            port: "6163",
+            vectorLayerGdbps: "gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界政区"
+        };
+        var map, vectorLayer;
+        //查询相关参数设置
+        var geomLayerCCQ = null;
+        var drawControlCCQ = null;
+        var flashLayerCCQ = null;  //临时用于存放需闪烁的要素的图层
+        var timerCCQ = null;
+        var m_datagridCCQ = null;
+        var CustomersDataCCQ = null;
+        var temRecCCQ = null;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                //地图常用工具控件
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(), //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(), //图层切换控件
+                    new OpenLayers.Control.Navigation(), //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),  //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()     //鹰眼
+                ]
+            });
+
+            //初始化矢量图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", [SvrCfg.vectorLayerGdbps], {
+                //矢量图层地图服务器ip
+                ip:SvrCfg.ip,
+                //矢量图层地图服务端口
+                port: SvrCfg.port,
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true
+            });
+
+            //将矢量图层加载到地图中
+            map.addLayers([vectorLayer]);
+
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            initCCQCtrl(); //初始化查询环境
+        }
+
+        /*==========================================交互式画圆查询===================================================*/
+        function initCCQCtrl() {
+            //创建画圆层并添加到地图容器中
+            geomLayerCCQ = new OpenLayers.Layer.Vector("geomLayerCCQ");
+            map.addLayer(geomLayerCCQ);
+            flashLayerCCQ = new OpenLayers.Layer.Vector("flashLayerCCQ ");
+            map.addLayer(flashLayerCCQ);
+
+            //创建画圆控件并添加在地图容器中，指定控件的回调函数featureAdded
+            drawControlCCQ = new OpenLayers.Control.DrawFeature(geomLayerCCQ, OpenLayers.Handler.RegularPolygon);
+            drawControlCCQ.handler.setOptions({ sides: 40 });
+            drawControlCCQ.featureAdded = callbackCCQ; //画圆查询的回调函数
+            map.addControl(drawControlCCQ);
+        }
+
+        //激活查询控件，可实施画圆查询
+        function queryCCQ() {
+            stopFlashCCQ();
+            if (drawControlCCQ) {
+                drawControlCCQ.activate();
+            }
+        }
+
+        //接收圆对象，读取对象几何信息和调用Zondy的查询服务
+        function callbackCCQ(feature) {
+            stopFlashCCQ();
+            var circleObj = new Zondy.Object.Circle();
+            circleObj.setByOL(feature.geometry);
+            feature.destroy();
+            var queryStruct = new Zondy.Service.QueryFeatureStruct();
+            queryStruct.IncludeGeometry = true;
+            var where = $("#conditionCONQ").val();
+            var queryParam = new Zondy.Service.QueryByLayerParameter(SvrCfg.vectorLayerGdbps,{ geometry: circleObj, where: where, resultFormat: "json", struct: queryStruct, pageIndex: 0, recordNumber: 20 });
+            var queryService = new Zondy.Service.QueryLayerFeature(queryParam, { ip: SvrCfg.ip, port: SvrCfg.port });
+            queryService.query(onSuccessCCQ); //查询成功后的回调函数
+        }
+
+        //获取查询结果（要素数组），并以动态表格形式展示每个要素信息
+        function onSuccessCCQ(data) {
+            var a = data;
+            if (a.SFEleArray != null) {
+                if (a.SFEleArray.length == 0) {
+                    alert("查询结果为空");
+                }
+                else queryResult1CCQ(a, flashLayerCCQ);
+            }
+            else {
+                alert("未选到要素");
+            }
+        }
+        //注销查询控件
+        function clearqueryCCQ() {
+            if (drawControlCCQ)
+                drawControlCCQ.deactivate();
+        }
+
+        //切换图层的可见属性，实现闪烁效果
+        function toggleLayerCCQ() {
+            if (flashLayerCCQ != null) {
+                if (flashLayerCCQ.visibility) {
+                    flashLayerCCQ.setVisibility(false);
+                }
+                else {
+                    flashLayerCCQ.setVisibility(true);
+                }
+            }
+        }
+        function startFlashCCQ() {
+            if (timerCCQ != null) {
+                clearInterval(timerCCQ);
+            }
+            timerCCQ = setInterval(toggleLayerCCQ, 500);
+        }
+        function stopFlashCCQ() {
+            clearInterval(timerCCQ);
+            flashLayerCCQ.setVisibility(false);
+        }
+
+        //将查询返回的json对象在表格中显示，
+        function queryResult1CCQ(a, mLayer) {
+
+            if (a == null || a.SFEleArray == null || a.SFEleArray.length <= 0) {
+                return;
+            }
+            if (mLayer == null) {
+                return;
+            }
+
+            var strjson = new Array(a.SFEleArray.length)
+            for (i = 0; i < a.SFEleArray.length; i++) {
+                strjson[i] = {};
+                for (k = 0; k <= a.AttStruct.FldName.length; k++) {
+                    if (k == 0) {
+                        strjson[i]["FID"] = a.SFEleArray[i].FID;
+                    }
+                    else {
+                        strjson[i][a.AttStruct.FldName[k - 1]] = a.SFEleArray[i].AttValue[k - 1];
+                    }
+                }
+            }
+
+
+            mLayer.setVisibility(false);
+            //格式化后的JSON数据
+            CustomersDataCCQ = {
+                total: a.SFEleArray.length,
+                rows: strjson
+
+            };
+            //    var row = null;
+            var filedStr = new Array(a.AttStruct.FldName.length + 2);
+            for (var k = 0; k <= a.AttStruct.FldName.length + 1; k++) {
+                filedStr[k] = {};
+            }
+            for (var m = 0; m <= a.AttStruct.FldName.length; m++) {
+                if (m == 0) {
+                    filedStr[m]["field"] = "FID";
+                    filedStr[m]["title"] = "FID";
+
+                }
+                else {
+                    filedStr[m]["field"] = a.AttStruct.FldName[m - 1];
+                    filedStr[m]["title"] = a.AttStruct.FldName[m - 1];
+                    filedStr[m]["editor"] = "text";
+                }
+
+                filedStr[m]["align"] = "center";
+                filedStr[m]["width"] = 80;
+            }
+            filedStr[a.AttStruct.FldName.length + 1]["field"] = 'action';
+            filedStr[a.AttStruct.FldName.length + 1]["title"] = '操作';
+            filedStr[a.AttStruct.FldName.length + 1]["align"] = 'center';
+            filedStr[a.AttStruct.FldName.length + 1]["width"] = 80;
+            filedStr[a.AttStruct.FldName.length + 1]["formatter"] = dealActionPQ;
+            function dealActionPQ(value, row, index) {
+                if (row.editing) {
+                    var s = '<a href="#" onclick="saverowCCQ(' + index + ')">保存</a> ';
+                    var c = '<a href="#" onclick="cancelrowCCQ(' + index + ')">取消</a>';
+                    return s + c;
+                } else {
+                    var e = '<a href="#" onclick="editrowCCQ(' + index + ')">编辑</a> ';
+                    return e;
+                }
+            }
+            m_datagridCCQ = $('#PQTable').datagrid({
+                title: '查询结果',
+                width: 420,
+                height: 250,
+                fitColumns: true,
+                rownumbers: true,
+                singleSelect: true,
+                pageNumber: 1,
+                pageSize: 5,
+                pageList: [5, 10, 15, 20],
+                nowrap: false,
+                collapsible: true,
+                columns: [filedStr],
+                toolbar: [{
+                    text: '保存',
+                    iconCls: 'icon-save',
+                    handler: saveallCCQ
+                }, {
+                    text: '取消',
+                    iconCls: 'icon-cancel',
+                    handler: cancelallCCQ
+                }],
+                onSelect: function (rowIndex, rowData) {
+                    queryByIDCCQ(rowData.FID);
+                },
+                onAfterEdit: function (index, row) {
+                    row.editing = false;
+                    var fid = row.FID;
+                    $('#PQTable').datagrid('refreshRow', index);
+                    temRecCCQ = $("#PQTable").datagrid("getSelected");
+                    updateFeatureByIDCCQ(fid, temRecCCQ);
+                },
+                onBeforeEdit: function (index, row) {
+                    row.editing = true;
+                    $('#PQTable').datagrid('refreshRow', index);
+                },
+                onCancelEdit: function (index, row) {
+                    row.editing = false;
+                    $('#PQTable').datagrid('refreshRow', index);
+                }
+            });
+            $("#PQTable").datagrid("loadData", CustomersDataCCQ);
+            $('#PQTable').datagrid('getPager').pagination(
+            {
+
+                beforePageText: '第', //页数文本框前显示的汉字  
+                afterPageText: '页    共 {pages} 页',
+                displayMsg: '当前显示 {from} - {to} 条记录   共 {total} 条记录',
+                onBeforeRefresh: function (pageNumber, pageSize) {
+                    $(this).pagination('loading');
+                    alert('pageNumber:' + pageNumber + ',pageSize:' + pageSize);
+                    $(this).pagination('loaded');
+                }
+            });
+            $("#switchBnt").css("display", "block");
+
+        }
+
+        function editrowCCQ(index) {
+            $('#PQTable').datagrid('beginEdit', index);
+        }
+        function saverowCCQ(index) {
+            $('#PQTable').datagrid('endEdit', index);
+        }
+        function cancelrowCCQ(index) {
+            $('#PQTable').datagrid('cancelEdit', index);
+        }
+        function saveallCCQ() {
+            $('#PQTable').datagrid('acceptChanges');
+        }
+        function cancelallCCQ() {
+            $('#PQTable').datagrid('rejectChanges');
+            if (flashLayerCCQ != null) {
+                flashLayerCCQ.removeAllFeatures();
+                flashLayerCCQ.setVisibility(false);
+            }
+        }
+        function queryByIDCCQ(id) {
+            var queryStruct = new Zondy.Service.QueryFeatureStruct();
+            queryStruct.IncludeGeometry = true;
+            var queryParam = new Zondy.Service.QueryByLayerParameter(SvrCfg.vectorLayerGdbps,{ objectIds: id, struct: queryStruct });
+            var queryService = new Zondy.Service.QueryLayerFeature(queryParam,{ ip: SvrCfg.ip, port: SvrCfg.port });
+            queryService.query(flashOnePntCCQ); //查询成功后的回调函数
+        }
+
+        function updateFeatureByIDCCQ(id, rcd) {
+            var queryStruct = new Zondy.Service.QueryFeatureStruct();
+            queryStruct.IncludeGeometry = true;
+            var queryParam = new Zondy.Service.QueryByLayerParameter(SvrCfg.vectorLayerGdbps,{ objectIds: id, struct: queryStruct });
+            var queryService = new Zondy.Service.QueryLayerFeature(queryParam,{ ip: SvrCfg.ip, port: SvrCfg.port });
+            queryService.query(updateFeatureCCQ); //查询成功后的回调函数
+        }
+        function updateFeatureCCQ(jsonObj) {
+            var feature = jsonObj.SFEleArray[0];
+            if (feature != null) {
+                for (var i = 0; i < jsonObj.AttStruct.FldNumber; i++) {
+                    feature.AttValue[i] = temRecCCQ[jsonObj.AttStruct.FldName[i]];
+                }
+                var newFeature = new Zondy.Object.Feature(feature);
+                var newFeatureSet = new Zondy.Object.FeatureSet();
+                //属性结构
+                newFeatureSet.AttStruct = jsonObj.AttStruct;
+                //要素
+                newFeatureSet.addFeature(newFeature);
+                var editService = new Zondy.Service.EditLayerFeature(SvrCfg.vectorLayerGdbps, { ip: SvrCfg.ip, port: SvrCfg.port });
+                editService.update(newFeatureSet, successCCQ);
+            }
+        }
+        function successCCQ(rlt) {
+            if (rlt == true)
+                alert("要素编辑成功");
+            else
+                alert("要素编辑失败");
+        }
+        function flashOnePntCCQ(jsonObj) {
+            createFlashPntCCQ(jsonObj, flashLayerCCQ);
+            startFlashCCQ();
+        }
+
+        //功能：根据查询得到的json对象，在临时闪烁图层中添加点要素
+        function createFlashPntCCQ(jsonObj, mLayer) {
+            var style = {
+                strokeColor: "black", //"red", //"",
+                strokeWidth: 0,
+                strokeOpacity: 1,
+                fillOpacity: 1,
+                fillColor: "red"
+
+            };
+            if (mLayer == null || jsonObj == null) {
+                return;
+            }
+            else {
+                mLayer.removeAllFeatures();
+            }
+
+            if (jsonObj.SFEleArray == null || jsonObj.SFEleArray.length <= 0) {
+                return;
+            }
+
+            for (i = 0; i < jsonObj.SFEleArray.length; i++) {
+                if (jsonObj.SFEleArray[i].fGeom.RegGeom[0].Rings != null) {
+                    var linPointArr = [];
+                    for (var j = 0; j < jsonObj.SFEleArray[i].fGeom.RegGeom[0].Rings.length; j++) {
+                        var ring = jsonObj.SFEleArray[i].fGeom.RegGeom[0].Rings[j].Arcs[0].Dots;
+                        var points = [];
+                        for (var k = 0; k < ring.length; k++) {
+                            var point = new OpenLayers.Geometry.Point(ring[k].x, ring[k].y);
+                            points.push(point);
+                        }
+                        var results = new OpenLayers.Geometry.LinearRing(points);
+                        linPointArr.push(results);
+                    }
+                    var p = new OpenLayers.Geometry.Polygon(linPointArr);
+                    var regFeature = new OpenLayers.Feature.Vector(p, null, style);
+                    mLayer.addFeatures([regFeature]);
+                }
+                if (i == 0) {
+                    if (jsonObj.SFEleArray[0].bound) {
+                        var pantoX = (jsonObj.SFEleArray[0].bound.xmin + jsonObj.SFEleArray[0].bound.xmax) / 2;
+                        var pantoY = (jsonObj.SFEleArray[0].bound.ymin + jsonObj.SFEleArray[0].bound.ymax) / 2;
+                    }
+                    map.setCenter(new OpenLayers.LonLat(pantoX, pantoY));
+                }
+
+            }
+        }
+    </script>
+</head>
+<body onload="init()">
+  <div id="header">
+        <span id="title">MapGIS IGServer QueryVectorLayerByInterCircleAndCondition Example</span> <span id="shortdesc">画圆+属性查询（矢量图层）：</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        画圆+属性查询（矢量图层）：</p>
+                          <div class="lineStyle"><label >
+                        查询条件：</label>
+                    <input id="conditionCONQ"  value="ID>=0"
+                        type="text" size="3" /></div>
+                    <button class="functionButtonForQuery" onclick="queryCCQ()">圆条件查询</button>
+                    <button class="functionButton" onclick="clearqueryCCQ()">停止查询</button>
+                    <button class="functionButton" onclick="stopFlashCCQ()">停止闪烁</button><br />
+                    <div><span>提示：圆条件查询的图层是“世界政区.WP”的图层。先设置好查询条件，再单击“圆条件查询”的按钮，然后在地图上画圆选择要素即可得到结果,默认最多只显示前20条,单击结果框里的查询结果可使要素闪烁显示。</span></div>
+                <table id="PQTable"></table>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,0 +1,3 @@
+eclipse.preferences.version=1
+validator.Checked=WebRoot/gis/Demos/MapDisplay/data/gml.xml,WebRoot/gis/lib/js/zdcontrol.js,WebRoot/gis/lib/js/zdclient.js,WebRoot/gis/lib/js/jquery-2.1.0.min.js,WebRoot/gis/lib/js/OpenLayers.js
+validator.Unchecked=

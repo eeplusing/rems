@@ -1,0 +1,182 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>几何图形绘制</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map;
+        var drawControls = null; //矢量图形绘制控件数组
+        var ModifyControl = null; //矢量图形编辑控件
+        var vectLayer = null;      //矢量要素图层
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map({
+                div: "mapCon",
+                numZoomLevels: 10,
+                maxExtent: new OpenLayers.Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34),
+                layers: [
+                    new Zondy.Map.GaodeLayer("高德矢量数据", {
+                        layerType: "vector",   //高德地图类型
+                        isBaseLayer: true
+                    })
+                ],
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+
+            //设置地图的显示中心及显示级数
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+        }
+
+        function initDrawLayer() {
+            vectLayer = new OpenLayers.Layer.Vector("VectLayer");
+            map.addLayer(vectLayer);
+            //添加交互绘制矢量图形的控件（点、线、多边形）
+            ModifyControl = new OpenLayers.Control.ModifyFeature(vectLayer);
+            map.addControl(ModifyControl);
+
+            drawControls = {
+                point: new OpenLayers.Control.DrawFeature(vectLayer, OpenLayers.Handler.Point),
+                line: new OpenLayers.Control.DrawFeature(vectLayer, OpenLayers.Handler.Path),
+                polygon: new OpenLayers.Control.DrawFeature(vectLayer, OpenLayers.Handler.Polygon),
+                RegularPolygon: new OpenLayers.Control.DrawFeature(vectLayer, OpenLayers.Handler.RegularPolygon)
+            };
+            
+            for (var key in drawControls) {
+                map.addControl(drawControls[key]);
+            }
+        }
+
+        //根据当前选择的绘制选项，切换绘制矢量图形的控件
+        function drawControl(typeIndex, featureType) {
+            if (vectLayer == null) {
+                initDrawLayer();
+            }
+            DeactiveDraw();
+            ModifyControl.deactivate(); //关闭图形编辑控件激活状态
+            document.getElementById("modifyFeature").checked = false;
+            for (key in drawControls) {
+                var control = drawControls[key];
+                if (featureType == key) {
+                    control.activate(); //激活图形绘制控件
+                    switch (typeIndex) {
+                        case 1:
+                            control.handler.setOptions({ sides: 40 }); //绘制类型：圆形
+                            break;
+                        case 3:
+                            control.handler.setOptions({ sides: 3 }); //绘制类型：三角形
+                            break;
+                        case 4:
+                            control.handler.setOptions({ sides: 4 }); //绘制类型：矩形
+                            break;
+                        case 5:
+                            control.handler.setOptions({ sides: 5 }); //绘制类型：五边形
+                            break;
+                        case 6:
+                            control.handler.setOptions({ sides: 6 }); //绘制类型：六边形
+                            break;
+                    }
+
+                } else {
+                    control.deactivate(); //关闭图形绘制控件激活状态
+                }
+            }
+        }
+
+        //取消矢量图形绘制控件的激活状态
+        function DeactiveDraw() {
+            for (key in drawControls) {
+                var control = drawControls[key];
+                control.deactivate(); //关闭图形绘制控件激活状态
+            }
+        }
+
+        //编辑几何图形
+        function modifyFeature(element) {
+            if (element != null) {
+                if (element.checked) {
+                    DeactiveDraw(); //取消矢量图形绘制控件的激活状态
+                    ModifyControl.activate(); //激活图形编辑控件
+                }
+                else {
+                    ModifyControl.deactivate(); //关闭图形编辑控件激活状态
+                }
+            }
+        }
+
+        //清除绘制的图形
+        function clearGraphics() {
+            if (vectLayer) {
+                map.removeLayer(vectLayer);
+            }
+            vectLayer = null;
+            DeactiveDraw();
+            ModifyControl.deactivate(); //关闭图形编辑控件激活状态
+            document.getElementById("modifyFeature").checked = false;
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer DrawGeometryByCtrl Example</span> <span id="shortdesc">
+            几何图形（点、线、区）绘制</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        几何图形（点、线、区）绘制：</p>
+                    <div id="itembox" class="itembox">
+                        <input type="checkbox" name="type" value="modify" id="modifyFeature" onclick="modifyFeature(this);" />
+                        <label for="modifyToggle">
+                            允许修改几何图形</label>
+                    </div>
+                    <!--绘制点-->
+                    <input type="button" id="point" class="functionButton" value="绘制点" onclick="drawControl(0,'point')" />
+                    <br />
+                    <!--绘制圆-->
+                    <input type="button" id="circle" class="functionButton" value="绘制圆" onclick="drawControl(1,'RegularPolygon')" />
+                    <br />
+                    <!--绘制线-->
+                    <input type="button" id="line" class="functionButton" value="绘制线" onclick="drawControl(2,'line')" />
+                    <br />
+                    <!--绘制矩形-->
+                    <input type="button" id="rect" class="functionButton" value="绘制矩形" onclick="drawControl(4,'RegularPolygon')" />
+                    <br />
+                    <!--绘制三角形-->
+                    <input type="button" id="triangle" class="functionButton" value="绘制三角形" onclick="drawControl(3,'RegularPolygon')" />
+                    <br />
+                    <!--绘制五边形-->
+                    <input type="button" id="pentagon" class="functionButton" value="绘制五边形" onclick="drawControl(5,'RegularPolygon')" />
+                    <br />
+                    <!--绘制六边形-->
+                    <input type="button" id="hexagon" class="functionButton" value="绘制六边形" onclick="drawControl(6,'RegularPolygon')" />
+                    <br />
+                    <!--绘制多边形-->
+                    <input type="button" id="polygon" class="functionButton" value="绘制多边形" onclick="drawControl(7,'polygon')" />
+                    <br />
+                    <!--清除所有图形-->
+                    <input type="button" id="clearGraphic" class="functionButton" value="清除所有图形" onclick="clearGraphics()" />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,0 +1,168 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>查询并Popup属性（矢量地图文档）</title>
+
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <!--popup-->
+    <script src="../../Scripts/popup/NestFramedCloud.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        //地图配置参数
+        var SvrCfg = {
+            ip: "127.0.0.1",
+            port: "6163",
+            docName: "WorldJWVector",
+            mapIndex: 0,
+            layerIndex: 1
+        };
+        var map, docLayer;
+        //查询相关参数设置
+        var featureTypePDA = null;
+        var isPDACheck = false;
+        var popupLonlatPDA = null;
+        var popupPDAArr = null;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息                                         //地图最大分辨率，默认是360度/256像素，相当于缩放级别0
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            docLayer = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", SvrCfg.docName, {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([docLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            initPDACtrl(); //初始化查询环境
+        }
+
+        /*==========================================查询并Popup属性===================================================*/
+        function initPDACtrl() {
+            map.events.unregister("click", null, dispPopPDA);
+            map.events.register("click", null, dispPopPDA);
+        }
+
+        function dispPopPDA(e) {
+            var lonlat = map.getLonLatFromViewPortPx(e.xy);
+            //如果小数位数太长，可调用lonlat.lon.toFixed(5);
+            popupLonlatPDA = lonlat;
+            //添加查询，根据查询结果显示属性信息
+            var geomObj = new Zondy.Object.PointForQuery(lonlat.lon, lonlat.lat);
+            geomObj.nearDis = 0.0; //容差半径,根据地图坐标类型设置
+
+            var queryStruct = new Zondy.Service.QueryFeatureStruct();
+            queryStruct.IncludeGeometry = true;
+            queryStruct.IncludeAttribute = true;
+            var queryParam = new Zondy.Service.QueryParameter({ geometry: geomObj, resultFormat: "json", struct: queryStruct });
+            var queryService = new Zondy.Service.QueryDocFeature(queryParam, SvrCfg.docName, SvrCfg.mapIndex, SvrCfg.layerIndex, { ip: SvrCfg.ip, port: SvrCfg.port });
+            queryService.query(onSuccessPDA); //查询成功后的回调函数
+
+        }
+        function onSuccessPDA(data) {
+            removeAllPopupPDA();
+            var a = data;
+            if (a.SFEleArray != null) {
+                if (a.SFEleArray.length == 0) {
+                    return false;
+                }
+                else {
+                    var pntPos = popupLonlatPDA;
+                    var popupContentHTML = "";
+                    for (var k = 0; k < a.AttStruct.FldName.length; k++) {
+                        if (k == 0) {
+                            popupContentHTML += '<div style="width:260px; height:230px; font-size:14px; font-family:微软雅黑">' +
+	'<div style="margin-left:250px;margin-top:0px;cursor:pointer;"><img src="../../img/imgForE06QueryAndPopupAtt/close.gif"  onclick="PDAPupuCallback()" /></div>' +
+    '<div style="color:#1446012;width:260px;">FID：' +
+	'<label >' + a.SFEleArray[0].FID + '</label>' + '</div>' +
+    '<div style="height:1px;line-height: 1px;border-bottom: 1px dashed #FF6203;width:260px;margin-top:2px "></div>';
+                        }
+                        else {
+                            popupContentHTML += '<li style ="margin-left:10px;margin-top:2px;list-style-type:disc; ">' + a.AttStruct.FldName[k - 1] +
+    ':<label style="color:#A52A2A;">' + a.SFEleArray[0].AttValue[k - 1] + '</label>' + '</li>';
+                        }
+                    }
+                    popupContentHTML += "</div>";
+                    var pop = new OpenLayers.Popup.NestFramedCloud(null, pntPos, null, popupContentHTML, null, false, null); ;
+                    map.addPopup(pop, true);
+                    pop.panIntoView();  //将溢出的popup移动到可视域范围内
+                    if (popupPDAArr == null) {
+                        popupPDAArr = [];
+                    }
+                    popupPDAArr.push(pop);
+                }
+            }
+        }
+
+        //删除所有Popup
+        function removeAllPopupPDA() {
+            if (popupPDAArr) {
+                var len = popupPDAArr.length;
+                for (var i = 0; i < len; i++) {
+                    if (popupPDAArr[i]) {
+                        map.removePopup(popupPDAArr[i]);
+                    }
+                }
+                popupPDAArr = null;
+            }
+        }
+
+        function PDAPupuCallback() {
+            removeAllPopupPDA();
+        }
+
+        function closePDA() {
+            removeAllPopupPDA();
+            map.events.unregister("click", null, dispPopPDA);
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer QueryAndPopupAtt Example</span> <span id="shortdesc">
+            查询并Popup属性（矢量地图文档）：</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        查询并Popup属性：</p>
+                    <div>
+                        提示：先点击事件查询按钮，再用鼠标点击地图，在Popup中会显示选择图元的属性,点击清除按钮清除当前状态。</div>
+                    <div>
+                        <button id="layer" class="functionButton" onclick="initPDACtrl()">
+                            事件查询</button>
+                        <button id="feature" class="functionButton" onclick="closePDA()">
+                            清除</button>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

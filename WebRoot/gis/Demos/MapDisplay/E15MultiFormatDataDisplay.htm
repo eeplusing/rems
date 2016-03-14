@@ -1,0 +1,125 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>显示KML、GML、GeoRSS数据</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig:true,
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                 //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldMKTVector", {
+            //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+        }
+
+        /*==========================================多源异构数据显示===================================================*/
+        function addMulFormatData(type) {
+            var pathpart ="data/";
+            switch (type) {
+            case 0:
+                clearMulFormatByTypeName("KML"); //先清除之前已经加载的KML数据
+                var kmllayer = new OpenLayers.Layer.Vector("KML", {
+                    strategies: [new OpenLayers.Strategy.Fixed()],
+                    protocol: new OpenLayers.Protocol.HTTP({ url: pathpart + "kml.xml", format: new OpenLayers.Format.KML({ extractStyles: true, extractAttributes: true, maxDepth: 2 }) })
+                });
+                map.addLayer(kmllayer); //将地图文档图层加载到地图中
+                break;
+            case 1:
+                clearMulFormatByTypeName("GML");
+                var gmllayer = new OpenLayers.Layer.GML("GML", pathpart + "gml.xml");
+                map.addLayer(gmllayer);
+                break;
+            case 2:
+                clearMulFormatByTypeName("georss");//先清除之前已经加载的GeoRSS数据
+                var georsslayer = new OpenLayers.Layer.GeoRSS("GeoRSS", pathpart + "georss.xml", { popupSize: new OpenLayers.Size(290, 210) });
+                map.addLayer(georsslayer);
+                break;
+            default:
+
+            }
+        }
+
+        //根据类型清除数据图层
+        function clearMulFormatByTypeName(typeName) {
+            var layerkml = map.getLayersByName(typeName);
+            if (layerkml != null) {
+                if (layerkml.length > 0) {
+                    for (var i = 0; i < layerkml.length; i++) {
+                        map.removeLayer(layerkml[i]);
+                    }
+                }
+            }
+        }
+
+        //清除数据
+        function deletMulFormatData() {
+            clearMulFormatByTypeName("KML");
+            clearMulFormatByTypeName("GML");
+            clearMulFormatByTypeName("georss");
+
+        }
+
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer MultiFormatData Example</span> <span id="shortdesc">
+            加载显示KML、GML、GeoRSS图层</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        加载显示KML、GML、GeoRSS图层</p>
+                    <!--KML数据-->
+                    <input type="button" id="createThemeBtn" value="KML数据" onclick="addMulFormatData(0)" /><br />
+                    <br />
+                    <!--GML数据-->
+                    <input type="button" id="updateThemeBtn" value="GML数据" onclick="addMulFormatData(1)" /><br />
+                    <br />
+                    <!--GeoRSS数据-->
+                    <input type="button" id="deleteThemeBtn" value="GeoRSS数据" onclick="addMulFormatData(2)" /><br />
+                    <br />
+                    <!--清除数据-->
+                    <input type="button" id="Button1" value="清除数据" onclick="deletMulFormatData()" /><br />
+                    <br />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

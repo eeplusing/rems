@@ -1,0 +1,899 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>网络分析</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, docLayer;
+        //网络分析配置参数
+        var SvrCfg = {
+            ip: "192.168.22.57",                                                    //服务ip
+            port: "6163",                                                       //服务端口
+            vecMapName: "daolujiaotong",                                             //地图文档名称
+            resolution: 1.6,                                                    //地图显示比率
+            numZoomLevels: 12,                                                  //地图缩放级别
+            mapBound: {                                                         //地图文档范围
+                xMin: 114.42204,
+                yMin: 38,
+                xMax: 114.57798,
+                yMax: 38.092545
+            },
+            mapCenter: { x: 0, y: 0 },                                          //地图的显示中心
+            dispLevel: 2                                                        //地图的显示级别                                               
+        };
+
+        /************************************************************************/
+        /* 网络分析相关变量定义--start                                                                     */
+        /************************************************************************/
+
+        var mapDocService;      //地图文档目录服务对象
+        var netAnalyParam;      //路径分析服务类
+        var netAnalyse;         //网络分析对象类
+        var netClsUrl;          //网络类url串
+        var elemType;           //网标类型
+
+        var flagLayer;          //网标绘制图层
+        var barrierLayer;       //障碍绘制图层
+        var pathLayer;          //分析路径图层，用于显示网络分析结果路径信息
+        var drawFlagCtrl;       //绘制网标控件
+        var drawBarrierCtrl;    //绘制障碍控件
+        var flagFeature;        //绘制的网标要素
+        var barrierFeature;     //绘制的障碍要素
+        var netFlagList;        //需要绘制的网标列表
+        var netFlag;            //记录网络分析的是网标列表
+        var netBarrierList;     //需要绘制的障碍列表
+        var netBarrier;         //记录网络分析的障碍列表
+
+        var startClick;         //开始按钮，用于是否显示网络设计参数设置div
+        var analyType = 0;      //区分三种分析方式
+
+        var pluResultData = new Array();    //多路分析结果
+        var resInfo = new Array();
+
+        /************************************************************************/
+        /* 变量定义--end                                                                     */
+        /************************************************************************/
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                numZoomLevels: SvrCfg.numZoomLevels,                        //地图的缩放级别
+                maxExtent: new OpenLayers.Bounds(                           //地图的最大范围
+                    SvrCfg.mapBound.xMin,
+                    SvrCfg.mapBound.yMin,
+                    SvrCfg.mapBound.xMax,
+                    SvrCfg.mapBound.yMax
+                ),       //地图的最大范围
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),                  //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()
+                ]
+            });
+
+            docLayer = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", SvrCfg.vecMapName, {   //初始化地图文档图层对象
+                ip: SvrCfg.ip,
+                port: "6163",
+                isBaseLayer: true
+            });
+
+
+
+            //初始化绘制和路径图层
+            flagLayer = new OpenLayers.Layer.Vector("flagLayer");           //创建绘图层与路径图层
+            barrierLayer = new OpenLayers.Layer.Vector("barrierLayer");
+            pathLayer = new OpenLayers.Layer.Vector("pathLayer");
+            map.addLayers([docLayer, flagLayer, barrierLayer, pathLayer]);  //将地图文档图层、绘图层加载到地图中
+
+            //创建绘制控件并添加在地图容器中，指定控件的回调函数featureAdded
+            drawFlagCtrl = new OpenLayers.Control.DrawFeature(flagLayer, OpenLayers.Handler.Point);
+            drawFlagCtrl.featureAdded = flagAdded;                      //网标绘制的回调函数
+            drawBarrierCtrl = new OpenLayers.Control.DrawFeature(barrierLayer, OpenLayers.Handler.Point);
+            drawBarrierCtrl.featureAdded = barrierAdded;                //障碍绘制的回调函数
+            map.addControls([drawFlagCtrl, drawBarrierCtrl]);
+
+            netFlagList = new Array();
+            netBarrierList = new Array();
+            netFlag = new Array();
+            netBarrier = new Array();
+
+            map.setCenter(new OpenLayers.LonLat(SvrCfg.mapCenter.x, SvrCfg.mapCenter.y), SvrCfg.dispLevel);   //设置地图的初始化显示中心和级别
+
+            initNetAnalysis();
+
+        }
+
+        /*============================================路径分析===================================================*/
+        /*
+        *	页面加载初始化函数
+        *@author fmm 2015-05-20
+        */
+        function initNetAnalysis() {
+            initNetCls();       //初始化网络类信息
+            initSelectBox();    //初始化路径分析设置面板
+        }
+
+        /*
+        *	初始化路径分析设置面板
+        *@author fmm 2015-05-21
+        */
+        function initSelectBox() {
+            //初始化分析方式下拉框
+            $("#LengthDIV").hide();
+            $("#SpeedDIV").hide();
+            $("#GradeDIV").hide();
+            $("#CostDIV").hide();
+            //初始化分析报告窗口
+            $("#resInfoDiv").hide();
+        }
+
+        /*
+        *	初始化网络类信息
+        *@author fmm 2015-05-20
+        */
+        function initNetCls() {
+            mapDocService = new Zondy.Service.Catalog.MapDoc({ ip: SvrCfg.ip });
+            mapDocService.setDocName(SvrCfg.vecMapName);
+            mapDocService.setMapIndex(0);
+            mapDocService.setLayerID(0);
+            mapDocService.getLayerInfo(getLayerInfoSuccess, true);
+        }
+
+        /*
+        *	获取地图文档中图层信息成功后的回调函数
+        */
+        function getLayerInfoSuccess(data) {
+            if (data) {
+                netAnalyParam = new Zondy.Service.NetAnalysisExtent({
+                    ip: SvrCfg.ip,
+                    port: "6163",
+                    netClsUrl: data.URL
+                });
+                netAnalyParam.getNetInfo("weight", getWeightSuccess);
+                netClsUrl = data.URL;
+            }
+        }
+
+        //获取网络权值成功后的回调函数
+        function getWeightSuccess(data) {
+            var weightList = data.split(',');
+            for (var i = 0; i < weightList.length - 1; i++) {
+                //基础分析权值设置
+                $("#nodeWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#fotoWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#tofoWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#lengthWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#gradeWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#speedWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#costWeightSelect").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+
+                //多路分析权值设置
+                $("#nodeWeightSelectPlu").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#minCostLenWgt").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#minCostChargeWgt").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+
+                //多策略分析权值设置
+                $("#minDisLenWgt").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#fotoWeightSelectPlu").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+                $("#tofoWeightSelectPlu").append('<option value="' + weightList[i] + '">' + weightList[i] + '</option>');
+            }
+        }
+
+        /************************************************************************/
+        /* 地图初始化相关--end                                                                     */
+        /************************************************************************/
+
+        /************************************************************************/
+        /* 网络分析相关--start                                                                 */
+        /************************************************************************/
+
+        //获取分析类型
+        function GetAnalyType() {
+            if ($("#analyTypeSelect").val() == "UserMode") {
+                $("#UserModeDIV").show();
+                $("#LengthDIV").hide();
+                $("#SpeedDIV").hide();
+                $("#GradeDIV").hide();
+                $("#CostDIV").hide();
+            }
+            else {
+                $("#UserModeDIV").hide();
+                $("#LengthDIV").show();
+                switch ($("#analyTypeSelect").val()) {
+                    case "SysModeCommwayPrefer":
+                    case "SysModeHighWayPrefer":
+                    case "SysModeSysRecommend":
+                        $("#SpeedDIV").hide();
+                        $("#GradeDIV").show();
+                        $("#CostDIV").hide();
+                        break;
+                    case "SysModeMinCost":
+                        $("#SpeedDIV").hide();
+                        $("#GradeDIV").hide();
+                        $("#CostDIV").show();
+                        break;
+                    case "SysModeMinDis":
+                        $("#SpeedDIV").hide();
+                        $("#GradeDIV").hide();
+                        $("#CostDIV").hide();
+                        break;
+                    case "SysModeMinTime":
+                        $("#SpeedDIV").show();
+                        $("#GradeDIV").hide();
+                        $("#CostDIV").hide();
+                        break;
+                }
+            }
+        }
+
+        /*
+        *	绘制网标
+        */
+        function drawNetFlag(nType, fType) {
+            switch (nType) {
+                case "flag":
+                    drawFlagCtrl.activate();
+                    drawBarrierCtrl.deactivate();
+                    break;
+                case "barrier":
+                    drawFlagCtrl.deactivate();
+                    drawBarrierCtrl.activate();
+                    break;
+                default:
+                    drawFlagCtrl.deactivate();
+                    drawBarrierCtrl.deactivate();
+                    break;
+            }
+
+            switch (fType) {
+                case "pnt":
+                    elemType = 1;
+                    break;
+                case "line":
+                    elemType = 2;
+                    break;
+                default:
+                    elemType = 0;
+                    break;
+            }
+        }
+
+        /*
+        *	结束绘制
+        */
+        function stopDraw() {
+            if (drawFlagCtrl) {
+                drawFlagCtrl.deactivate();
+            }
+            if (drawBarrierCtrl) {
+                drawBarrierCtrl.deactivate();
+            }
+        }
+
+        /*
+        *	网标绘制的回调函数
+        */
+        function flagAdded(feature) {
+            flagFeature = feature;
+            var dotVal = feature.geometry.x + "," + feature.geometry.y;
+            netAnalyParam.elementType = elemType;
+            netAnalyParam.nearDis = $("#nearDis").val() / SvrCfg.resolution;
+            netAnalyParam.addNetFlag(dotVal, addFlagSuccess);
+        }
+
+        /*
+        *	绘制网标成功后的回调
+        */
+        function addFlagSuccess(data) {
+            if (data && data[0].elemID != null) {
+                var styObj = MyCloneDrawGraphic(OpenLayers.Feature.Vector.style['default']);
+                styObj.fillColor = "#FFFF00";
+                styObj.fillOpacity = 0.4;
+                styObj.pointRadius = 6;
+                styObj.pointerEvents = "visiblePainted";
+                styObj.strokeColor = "#0000FF";
+                styObj.strokeDashstyle = "solid";
+                styObj.strokeLinecap = "square";
+                styObj.strokeOpacity = 0.8;
+                styObj.strokeWidth = 2;
+                flagFeature.style = styObj;
+                flagFeature.geometry.x = data[0].posDot.X;
+                flagFeature.geometry.y = data[0].posDot.Y;
+
+                var netFlagTmp =
+                    {
+                        elemID: data[0].elemID,
+                        isFlag: true,
+                        posDot: data[0].posDot,
+                        posPerc: data[0].posPerc,
+                        type: data[0].type
+                    };
+
+                netFlag.push(netFlagTmp);
+                netFlagList.push(flagFeature);
+                flagLayer.redraw();
+            }
+            else {
+                flagFeature.destroy();      //控制不画该点
+            }
+        }
+
+        /*
+        *	障碍绘制的回调函数
+        */
+        function barrierAdded(feature) {
+            barrierFeature = feature;
+            var dotVal = feature.geometry.x + "," + feature.geometry.y;
+            netAnalyParam.elementType = elemType;
+            netAnalyParam.nearDis = $("#nearDis").val() / SvrCfg.resolution;
+            netAnalyParam.addNetFlag(dotVal, addBarrierSuccess);
+        }
+
+        /*
+        *	绘制障碍点成功后的回调
+        */
+        function addBarrierSuccess(data) {
+            if (data && data[0].elemID != null) {
+                var styObj = MyCloneDrawGraphic(OpenLayers.Feature.Vector.style['default']);
+                styObj.fillColor = "#FFFF00";
+                styObj.fillOpacity = 0.4;
+                styObj.pointRadius = 6;
+                styObj.pointerEvents = "visiblePainted";
+                styObj.strokeColor = "#FF0000";
+                styObj.strokeDashstyle = "solid";
+                styObj.strokeLinecap = "square";
+                styObj.strokeOpacity = 0.8;
+                styObj.strokeWidth = 2;
+                barrierFeature.style = styObj;
+                barrierFeature.geometry.x = data[0].posDot.X;
+                barrierFeature.geometry.y = data[0].posDot.Y;
+
+                var netBarrierTmp =
+                    {
+                        elemID: data[0].elemID,
+                        isFlag: false,
+                        posDot: data[0].posDot,
+                        posPerc: data[0].posPerc,
+                        type: data[0].type
+                    };
+
+                netBarrier.push(netBarrierTmp);
+                netBarrierList.push(barrierFeature);
+                barrierLayer.redraw();
+            }
+            else {
+                barrierFeature.destroy();
+            }
+        }
+
+        /*
+        *	清除网标或障碍
+        *@author fmm 2015-05-22
+        */
+        function clearNetFlag(type) {
+            switch (type) {
+                case "flag":
+                    for (var i = 0; i < netFlagList.length; i++) {
+                        netFlagList[i].destroy();
+                    }
+                    netFlagList = new Array();
+                    netFlag = new Array();
+                    break;
+                case "barrier":
+                    for (var i = 0; i < netBarrierList.length; i++) {
+                        netBarrierList[i].destroy();
+                    }
+                    netBarrierList = new Array();
+                    netBarrier = new Array();
+                    break;
+            }
+
+        }
+
+        /*
+        *停止添加网标或障碍
+        *@author fmm 2015-05-22
+        */
+        function stopNetFlag(type) {
+            switch (type) {
+                case "flag":
+                    drawFlagCtrl.deactivate();
+                    break;
+                case "barrier":
+                    drawBarrierCtrl.deactivate();
+                    break;
+            }
+        }
+
+
+        function MyCloneDrawGraphic(myObj) {
+            if (typeof (myObj) != 'object') return myObj;
+            if (myObj == null) return myObj;
+
+            var myNewObj = new Object();
+
+            for (var i in myObj)
+                myNewObj[i] = MyCloneDrawGraphic(myObj[i]);
+
+            return myNewObj;
+        }
+
+        /*
+        *	开始进行分析
+        */
+        function startAnalyse() {
+            //清除原有分析结果
+            $("#resultDraw").hide();
+            $("#rltSelect").empty();
+            pluResultData = new Array();
+            clearAnalyResult();
+
+            var nodeID = 8;
+            var edgesID = "18,7,19,6";
+            var ts = "1, 1, 1, 1, 1, 1, 1, 1, 1, -1, 1, 1, 1, 1, 1, 1";
+            var turnWgt =
+                {
+                    nodeID: nodeID,
+                    edgesID: edgesID,
+                    ts: ts
+                };
+
+            if (analyType == 0) {
+                if (netFlag != "") {
+                    netAnalyParam.partUrl = null;
+                    netAnalyParam.baseUrl = null;
+
+                    var weight;
+                    if ($("#analyTypeSelect  option:selected").val() == "UserMode") {
+                        weight = $("#nodeWeightSelect  option:selected").val() + "," + $("#fotoWeightSelect  option:selected").val() + "," + $("#tofoWeightSelect  option:selected").val();
+                    } else {
+                        var modeType = $("#analyTypeSelect  option:selected").val();
+                        switch (modeType) {
+                            case "SysModeCommwayPrefer":        //系统模式--普通公路优先
+                                weight = $("#lengthWeightSelect  option:selected").val() + "," + $("#gradeWeightSelect  option:selected").val();
+                                break;
+                            case "SysModeHighWayPrefer":        //系统模式--高速公路优先
+                                weight = $("#lengthWeightSelect  option:selected").val() + "," + $("#gradeWeightSelect  option:selected").val();
+                                break;
+                            case "SysModeSysRecommend":         //系统模式--系统推荐
+                                weight = $("#lengthWeightSelect  option:selected").val() + "," + $("#gradeWeightSelect  option:selected").val();
+                                break;
+                            case "SysModeMinCost":              //系统模式--最少花费
+                                weight = $("#lengthWeightSelect  option:selected").val() + "," + $("#costWeightSelect  option:selected").val();
+                                break;
+                            case "SysModeMinDis":               //系统模式--最短路径
+                                weight = $("#lengthWeightSelect  option:selected").val();
+                                break;
+                            case "SysModeMinTime":              //系统模式--最短时间
+                                weight = $("#lengthWeightSelect  option:selected").val() + "," + $("#speedWeightSelect  option:selected").val();
+                                break;
+                            default:
+                        }
+                    }
+
+                    netAnalyse = new Zondy.Object.NetAnalyse({
+                        netCls: netClsUrl,
+                        flagPosStr: netFlag,
+                        barrierPosStr: netBarrier,
+                        weight: weight,
+                        mode: $("#analyTypeSelect  option:selected").val(),
+                        isTour: $('#isTour').is(":checked"),
+                        isTravel: $('#isTravel').is(":checked"),
+                        usedTWgt: $('#usedTWgt').is(":checked"),
+                        turnWgt: turnWgt
+                    });
+                    var netAnalyseStr = JSON.stringify(netAnalyse);
+                    netAnalyParam.netAnalyse(netAnalyse, analySuccess);
+                }
+                else {
+                    alert("请输入网标");
+                }
+            }
+            else if (analyType == 1) {
+                var weight = $("#nodeWeightSelectPlu option:selected").val() + "," + $("#fotoWeightSelectPlu  option:selected").val() + "," + $("#tofoWeightSelectPlu option:selected").val();
+                if (netFlag == "") {
+                    alert("请输入网标");
+                    return;
+                }
+                netAnalyParam.partUrl = null;
+                netAnalyParam.baseUrl = null;
+                netAnalyse = new Zondy.Object.NetAnalyse({
+                    netCls: netClsUrl,
+                    flagPosStr: netFlag,
+                    barrierPosStr: netBarrier,
+                    weight: weight,
+                    mode: $("#analyTypeSelect  option:selected").val(),
+                    isTour: $('#isTour').is(":checked"),
+                    isTravel: $('#isTravel').is(":checked"),
+                    usedTWgt: $('#usedTWgt').is(":checked"),
+                    turnWgt: turnWgt
+                });
+                netAnalyParam.pluNetAnalyse(netAnalyse, pluNetAnalyseSuccess);
+            } else if (analyType == 2) {
+                var weight = $("#minDisLenWgt option:selected").val() + "," + $("#minTimeLenWgt  option:selected").val() + ","
+                + $("#minTimeSpeedWgt option:selected").val() + "," + $("#minCostLenWgt option:selected").val() + "," + $("#minCostChargeWgt option:selected").val();
+
+                if (netFlag == "") {
+                    alert("请输入网标");
+                    return;
+                }
+                netAnalyParam.partUrl = null;
+                netAnalyParam.baseUrl = null;
+                netAnalyse = new Zondy.Object.NetAnalyse({
+                    netCls: netClsUrl,
+                    flagPosStr: netFlag,
+                    barrierPosStr: netBarrier,
+                    weight: weight,
+                    mode: $("#analyTypeSelect  option:selected").val(),
+                    isTour: $('#isTour').is(":checked"),
+                    isTravel: $('#isTravel').is(":checked"),
+                    usedTWgt: $('#usedTWgt').is(":checked"),
+                    turnWgt: turnWgt
+                });
+                netAnalyParam.comNetAnalyse(netAnalyse, comNetAnalyseSuccess);
+            }
+        }
+
+        /*
+        *	基本路径分析
+        */
+        function excuteAnalysisBase() {
+            $("#baseAnalyseTab").show();
+            $("#pluAnalyseTab").hide();
+            $("#comNetAnalyseTab").hide();
+            $("#resultDraw").hide();
+            analyType = 0;
+        }
+
+        /*
+        *	综合分析，即一次分析以多个权值返回多种分析情况下的路径
+        *@author fmm 2015-06-07
+        */
+        function excuteAnalysisCom() {
+            $("#baseAnalyseTab").hide();
+            $("#pluAnalyseTab").hide();
+            $("#comNetAnalyseTab").show();
+            $("#resultDraw").hide();
+            analyType = 2;
+        }
+
+        /*
+        *	多路分析，即一次分析以同一个权值返回多条路径
+        *@author fmm 2015-06-07
+        */
+        function excuteAnalysisPlu() {
+            $("#baseAnalyseTab").hide();
+            $("#pluAnalyseTab").show();
+            $("#comNetAnalyseTab").hide();
+            $("#resultDraw").hide();
+            analyType = 1;
+        }
+
+        /*
+        *	基本分析回调函数
+        */
+        function analySuccess(data) {
+            if (data == null) {
+                clearAnalyResult();
+                alert("分析失败！请检查参数！");
+                return;
+            }
+            var points = new Array();
+            for (var t = 0; t < data.dotsss.length; t++) {
+                for (var i = 0; i < data.dotsss[t].length; i++) {
+                    for (var j = 0; j < data.dotsss[t][i].length; j++) {
+                        var point = new OpenLayers.Geometry.Point(data.dotsss[t][i][j].X, data.dotsss[t][i][j].Y);
+                        points.push(point);
+                    }
+                }
+
+            }
+            var lin = new OpenLayers.Geometry.LineString(points);
+            var linFeature = new OpenLayers.Feature.Vector(lin);
+            pathLayer.addFeatures(linFeature);
+
+            if (resInfo != null) {
+                resInfo = new Array();
+            }
+            resInfo[0] = data.resInfo[0];
+        }
+
+        /*
+        *	多路分析回调函数
+        */
+        function pluNetAnalyseSuccess(data) {
+            if (data == null) {
+                clearAnalyResult();
+                alert("分析失败！请检查参数！");
+                return;
+            }
+
+            var rltCount = data.dotsss.length;
+            pluResultData = data.dotsss;
+
+            $("#resultDraw").show();
+            $("#rltCount").attr("value", rltCount);
+            for (var i = 0; i < rltCount; i++) {
+                $("#rltSelect").append('<option value="' + i + '">' + i + '</option>');
+            }
+            if (resInfo != null) {
+                resInfo = new Array();
+            }
+            resInfo = data.resInfo;
+            drawAnalyseRlt();
+        }
+
+        /*
+        *	多策略分析回调函数
+        */
+        function comNetAnalyseSuccess(data) {
+            if (data == null) {
+                clearAnalyResult();
+                alert("分析失败！请检查参数！");
+                return;
+            }
+
+            var rltCount = data.dotsss.length;
+            pluResultData = data.dotsss;
+
+            $("#resultDraw").show();
+            $("#rltCount").attr("value", rltCount);
+            for (var i = 0; i < rltCount; i++) {
+                $("#rltSelect").append('<option value="' + i + '">' + i + '</option>');
+            }
+            if (resInfo != null) {
+                resInfo = new Array();
+            }
+            resInfo = data.resInfo;
+            drawAnalyseRlt();
+        }
+
+        //绘制结果路径
+        function drawAnalyseRlt() {
+            clearAnalyResult();
+            var index = $("#rltSelect option:selected").val();
+            if (pluResultData == null) {
+                alert("分析失败！请检查参数！");
+                return;
+            }
+            var points = new Array();
+            for (var i = 0; i < pluResultData[index].length; i++) {
+                for (var j = 0; j < pluResultData[index][i].length; j++) {
+                    var point = new OpenLayers.Geometry.Point(pluResultData[index][i][j].X, pluResultData[index][i][j].Y);
+                    points.push(point);
+                }
+            }
+            var lin = new OpenLayers.Geometry.LineString(points);
+            var linFeature = new OpenLayers.Feature.Vector(lin);
+            pathLayer.addFeatures(linFeature);
+        }
+
+        /*分析报告*/
+        function showResInfo() {
+            $("#resInfoDiv").show();
+            if (analyType == 0) {
+                $("#resInfoShow").val(resInfo[0]);
+            } else {
+                var index = $('#rltSelect').prop('selectedIndex');
+                $("#resInfoShow").val(resInfo[index]);
+            }
+        }
+
+        /*
+        *	清除分析结果
+        */
+        function clearAnalyResult() {
+            stopDraw();
+            if (pathLayer) {
+                pathLayer.destroyFeatures();
+            }
+            $("#resInfoShow").val("");
+            $("#resInfoDiv").hide();
+        }
+        /************************************************************************/
+        /*网络分析相关--end                                                            */
+        /************************************************************************/
+        
+
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer NetAnalysisExtent Example</span> <span id="shortdesc">网络分析</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelConForNetAnalysis">
+                <div id="toolspanel">
+                    <p>
+                        网络分析：</p>
+                    <input type="button" id="pntFlg" class="functionButton" value="点上网标" onclick="drawNetFlag('flag','pnt')" />
+                    <input type="button" id="lineFlg" class="functionButton" value="线上网标" onclick="drawNetFlag('flag','line')" />
+                    <input type="button" id="outerFlg" class="functionButton" value="导入网标" onclick="" />
+                    <input type="button" id="clearFlg" class="functionButton" value="清除网标" onclick="clearNetFlag('flag')" />
+                    <input type="button" id="stopFlg" class="functionButton" value="停止网标" onclick="stopNetFlag('flag')" /><br />
+                    <input type="button" id="pntBar" class="functionButton" value="点上障碍" onclick="drawNetFlag('barrier','pnt')" />
+                    <input type="button" id="lineBar" class="functionButton" value="线上障碍" onclick="drawNetFlag('barrier','line')" />
+                    <input type="button" id="outerBar" class="functionButton" value="导入障碍" onclick="" />
+                    <input type="button" id="clearBar" class="functionButton" value="清除障碍" onclick="clearNetFlag('barrier')" />
+                    <input type="button" id="stopBar" class="functionButton" value="停止障碍" onclick="stopNetFlag('barrier')" /><br />
+                    <div class="checkBoxList">
+                        捕捉精度:&nbsp<input type="text" id="nearDis" value="10" /><br />
+                        是否游历:&nbsp<input type="checkbox" id="isTravel" />&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                        是否迂回:&nbsp<input type="checkbox" id="isTour" /><br />
+                        是否启用转角权值:&nbsp<input type="checkbox" id="usedTWgt" />
+                    </div>
+                    <div class="cont">
+                        <table id="baseAnalyseTab">
+                            <tr>
+                                <td id="catogory">
+                                    分析类型：
+                                </td>
+                                <td>
+                                    <select id="analyTypeSelect" name="analyType" onchange="GetAnalyType()">
+                                        <option value="UserMode">用户模式</option>
+                                        <option value="SysModeCommwayPrefer">系统模式--普通公路优先</option>
+                                        <option value="SysModeHighWayPrefer">系统模式--高速公路优先</option>
+                                        <option value="SysModeSysRecommend">系统模式--系统推荐</option>
+                                        <option value="SysModeMinCost">系统模式--最少花费</option>
+                                        <option value="SysModeMinDis">系统模式--最短路径</option>
+                                        <option value="SysModeMinTime">系统模式--最短时间</option>
+                                    </select>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                </td>
+                                <td>
+                                    <div id="UserModeDIV">
+                                        节点网络权值：
+                                        <select class="netAnalySelect" id="nodeWeightSelect" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select><br />
+                                        边线顺向网络权值：
+                                        <select class="netAnalySelect" id="fotoWeightSelect" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select><br />
+                                        边线逆向网络权值：
+                                        <select class="netAnalySelect" id="tofoWeightSelect" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                    <div id="LengthDIV">
+                                        道路长度：
+                                        <select class="netAnalySelect" id="lengthWeightSelect" name="weight">
+                                            <option value=""></option>
+                                        </select>
+                                    </div>
+                                    <div id="GradeDIV">
+                                        道路等级：
+                                        <select class="netAnalySelect" id="gradeWeightSelect" name="weight">
+                                            <option value=""></option>
+                                        </select>
+                                    </div>
+                                    <div id="SpeedDIV">
+                                        车辆平均速度：
+                                        <select class="netAnalySelect" id="speedWeightSelect" name="weight">
+                                            <option value=""></option>
+                                        </select>
+                                    </div>
+                                    <div id="CostDIV">
+                                        道路是否收费：
+                                        <select class="netAnalySelect" id="costWeightSelect" name="weight">
+                                            <option value=""></option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                        <table id="pluAnalyseTab" style="display: none;">
+                            <tr>
+                                <td>
+                                    节点网络权值：
+                                    <select class="netAnalySelect" id="nodeWeightSelectPlu" name="weight">
+                                        <option value="">缺省网络权</option>
+                                    </select><br />
+                                    边线顺向网络权值：
+                                    <select class="netAnalySelect" id="fotoWeightSelectPlu" name="weight">
+                                        <option value="">缺省网络权</option>
+                                    </select><br />
+                                    边线逆向网络权值：
+                                    <select class="netAnalySelect" id="tofoWeightSelectPlu" name="weight">
+                                        <option value="">缺省网络权</option>
+                                    </select>
+                                </td>
+                            </tr>
+                        </table>
+                        <table id="comNetAnalyseTab" style="display: none;">
+                            <tr>
+                                <td>
+                                    最短距离分析
+                                </td>
+                                <td>
+                                    <div id="minDisLenDiv">
+                                        道路长度：
+                                        <select class="netAnalySelect" id="minDisLenWgt" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    最短时间分析
+                                </td>
+                                <td>
+                                    <div id="minTimeLenDiv ">
+                                        道路长度：
+                                        <select class="netAnalySelect" id="minTimeLenWgt" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                    <div id="minTimeSpeedDiv ">
+                                        车辆平均速度：
+                                        <select class="netAnalySelect" id="minTimeSpeedWgt" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>
+                                    最小花费分析
+                                </td>
+                                <td>
+                                    <div id="minCostLenDiv ">
+                                        道路长度：
+                                        <select class="netAnalySelect" id="minCostLenWgt" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                    <div id="minCostChargeDiv">
+                                        道路收费：
+                                        <select class="netAnalySelect" id="minCostChargeWgt" name="weight">
+                                            <option value="">缺省网络权</option>
+                                        </select>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+                    <input type="button" id="baseAnalyse" class="functionButtonAnaly" value="基础分析" onclick="excuteAnalysisBase()" />
+                    <input type="button" id="pluAnalyse" class="functionButtonAnaly" value="多路分析" onclick="excuteAnalysisPlu()" />
+                    <input type="button" id="comAnalyse" class="functionButtonAnaly" value="综合分析" onclick="excuteAnalysisCom()" />
+                    <input type="button" id="startAnalyse" class="functionButtonAnaly" value="开始分析" onclick="startAnalyse()" />
+                    <input type="button" id="clearAnalyse" class="functionButtonAnaly" value="清除结果" onclick="clearAnalyResult()" />
+                    <input type="button" id="resInfo" class="functionButtonAnaly" value="分析报告" onclick="showResInfo()" /><br />
+                    <div id="resultDraw" >
+                        有<input type="text" id="rltCount" disabled="disabled" />条分析结果<br />
+                        请选择绘制路径
+                        <select class="netAnalySelect" id="rltSelect" name="weight" onchange="drawAnalyseRlt()">
+                            <option value=""></option>
+                        </select>
+                    </div>
+                    <!--分析报告显示-->
+                    <div id="resInfoDiv">
+                        <textarea id="resInfoShow" ></textarea>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

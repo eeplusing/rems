@@ -1,0 +1,133 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>加载OGC的WFS图层</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        OpenLayers.ProxyHost = "ZDproxy.ashx?url=";
+        var map, wmsDocLayer, wfsDocLayer, wfsVectLayer, baseUrlDocWMS, baseUrlDocWFS, baseUrlLayerWFS;
+        var infoControls, highlightLayer;
+        function init() {
+            map = new OpenLayers.Map('mapCon', {
+                numZoomLevels: 7,
+                maxExtent: new OpenLayers.Bounds(-20037508.3427892, -20037508.3427892, 20037508.3427892, 20037508.3427892),
+                maxResolution: (20037508.3427892 - (-20037508.3427892)) / 256,
+                controls: [
+                        new OpenLayers.Control.Navigation(),
+                        new OpenLayers.Control.PanZoomBar(),
+                        new OpenLayers.Control.LayerSwitcher()]
+            });
+
+            //基于地图文档的WMS访问基地址
+            baseUrlDocWMS = "http://127.0.0.1:6163/igs/rest/ogc/doc/WorldMKTVector/WMSServer";
+
+            //创建基于地图文档的WMS控件并加载到地图中
+            wmsDocLayer = new OpenLayers.Layer.WMS("WMSDoc",
+                    baseUrlDocWMS,          //WMS服务的基地址
+            //请求的图层名，用逗号分隔多个图层；既支持单纯的图层名，也支持服务名称（图层名）
+                    {layers: ["WorldMKTVector:背景图层.wp,世界政区.wp,完整的国界线.WL.WL,国界海岸省界1,中国省会.wt,主要城市.wt,洲洋注记,中国"],
+                    //输出图象的类型,支持三种格式gif、png、jpg
+                    format: "image/gif",
+                    //是否作为基础图层显示
+                    isBaseLayer: true
+                }
+                );
+            map.addLayers([wmsDocLayer]);
+
+
+            /**
+            *基于矢量地图文档的WFS访问基地址
+            */
+            baseUrlDocWFS = "http://127.0.0.1:6163/igs/rest/ogc/doc/WorldMKTVector/WFSServer";
+            //创建基于矢量图层的WMS控件并加载到地图中
+            wfsDocLayer = new OpenLayers.Layer.Vector("WFSDoc", {
+                strategies: [new OpenLayers.Strategy.BBOX()], /*指定坐标处在map视口范围内的要素被显示*/
+                protocol: new OpenLayers.Protocol.WFS({
+                    url: baseUrlDocWFS, /*设置WFS服务基地址*/
+                    featureType: ["世界政区.wp"], /*设置图层名称*/
+                    featurePrefix: "WorldMKTVector", /*设置WFS服务的名称*/
+                    version: '1.0.0', /*设置WFS服务的版本*/
+                    outputFormat: "gml2", /*设置要素输出的格式*/
+                    featureNS: "http://www.mapgis.com.cn/" + "WorldMKTVector"
+                }),
+
+                filter: //[/*设置要素筛选（查询）的条件*/
+                    new OpenLayers.Filter.Comparison({/*比较操作，设置属性条件*/
+                        type: OpenLayers.Filter.Comparison.LIKE,
+                    property: "name",
+                    value: "阿富汗"
+                })
+            });
+            map.addLayers([wfsDocLayer]);
+
+            /**
+            *创建矢量层控件
+            */
+            highlightLayer = new OpenLayers.Layer.Vector("Highlighted Features", {
+                displayInLayerSwitcher: false, /*设置在图层控件中是否可见*/
+                isBaseLayer: false/*设置是否为基础图形*/
+            });
+            map.addLayers([highlightLayer]);
+
+
+            baseUrlLayerWFS = "http://127.0.0.1:6163/igs/rest/ogc/layer/WorldMKTLayer/WFSServer";
+            /**
+            *创建基于矢量图层的WFS控件并加载到地图中
+            */
+            wfsVectLayer = new OpenLayers.Layer.Vector("WFSLayer", {
+                strategies: [new OpenLayers.Strategy.BBOX()], /*指定坐标处在map视口范围内的要素被显示*/
+                protocol: new OpenLayers.Protocol.WFS({
+                    url: baseUrlLayerWFS, /*设置WFS服务基地址*/
+                    featureType: ["世界政区.wp"], /*设置图层名称*/
+                    featurePrefix: "WorldMKTLayer", /*设置WFS服务的名称*/
+                    version: '1.0.0', /*设置WFS服务的版本*/
+                    outputFormat: "gml2", /*设置要素输出的格式*/
+                    featureNS: "http://www.mapgis.com.cn/" + "WorldMKTLayer"
+                }),
+                styleMap: new OpenLayers.StyleMap({/*设置要素显示的样式*/
+                    strokeWidth: 3,
+                    strokeColor: "#ff0000"
+                }),
+
+                filter: new OpenLayers.Filter.Logical({
+                    type: OpenLayers.Filter.Logical.AND, /*操作符“与”*/
+                    filters: [/*设置要素筛选（查询）的条件*/
+                                    new OpenLayers.Filter.Spatial({/*空间过滤*/
+                                        type: OpenLayers.Filter.Spatial.DWITHIN, /*范围查询*/
+                                        value: new OpenLayers.Bounds(11114181.71, 3957792.36, 11825030.78, 4022415.01),
+                                        projection: "EPSG:4214"
+                                    })
+                            ]
+                })
+            });
+            map.addLayers([wfsVectLayer]);
+            /**
+            *设置地图的初始化显示中心和显示级别
+            */
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+
+        }
+
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer OGCWFSLayers Example</span> <span id="shortdesc">加载OGC的WFS信息</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,0 +1,135 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>加载OGC的WMS图层</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        OpenLayers.ProxyHost = "ZDproxy.ashx?url=";
+        var map, wmsDocLayer, wmsVectLayer,baseUrlDoc, baseUrlLayer;
+        var infoControls, highlightLayer;
+        function init() {
+            map = new OpenLayers.Map('mapCon', {
+                numZoomLevels: 7,
+                maxExtent: new OpenLayers.Bounds(-180, -90, 180, 90),
+                maxResolution: (180 - (-180)) / 256,
+                controls: [
+                        new OpenLayers.Control.Navigation(),
+                        new OpenLayers.Control.PanZoomBar(),
+                        new OpenLayers.Control.LayerSwitcher()]
+            });
+
+            //设置投影坐标系
+            map.projection = new OpenLayers.Projection("EPSG:4214");
+            //基于地图文档的WMS访问基地址
+            baseUrlDoc = "http://127.0.0.1:6163/igs/rest/ogc/doc/WorldJWVector/WMSServer";
+
+            //创建基于地图文档的WMS控件并加载到地图中
+            wmsDocLayer = new OpenLayers.Layer.WMS("WMSDoc",
+                    baseUrlDoc,          //WMS服务的基地址
+            //请求的图层名，用逗号分隔多个图层；既支持单纯的图层名，也支持服务名称（图层名）
+                    {layers: ["WorldJWVector:背景图层,世界政区,完整的国界线.wl,国界海岸省界jw,中国省界_不含国界,世界河流,主要城市,洲洋注记_1,中国注记"],
+                    //输出图象的类型,支持三种格式gif、png、jpg
+                    format: "image/gif",
+                    version:"1.1.1",
+                    //是否作为基础图层显示
+                    isBaseLayer: true
+                });
+            map.addLayers([wmsDocLayer]);
+
+
+            /**
+            *基于矢量图层的WMS访问基地址
+            */
+            baseUrlLayer = "http://127.0.0.1:6163/igs/rest/ogc/layer/WorldJWLayer/WMSServer";
+            //创建基于矢量图层的WMS控件并加载到地图中
+            wmsVectLayer = new OpenLayers.Layer.WMS("WMSLayer", baseUrlLayer,
+                  { layers: ["WorldJWLayer:世界政区"],
+                      format: "image/png",
+                      isBaseLayer: true,
+                      opacity: 0.5
+                  }
+
+            );
+            map.addLayers([wmsVectLayer]);
+
+            /**
+            *创建矢量层控件
+            */
+            highlightLayer = new OpenLayers.Layer.Vector("Highlighted Features", {
+                displayInLayerSwitcher: false, /*设置在图层控件中是否可见*/
+                isBaseLayer: false/*设置是否为基础图形*/
+            });
+            map.addLayers([highlightLayer]);
+
+            /**
+            *设置地图的初始化显示中心和显示级别
+            */
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+
+            /**
+            *创建WMSGetFeatureInfo控件，访问GetFeatureInfo接口获取单击点要素信息
+            */
+            infoControls = {
+                click: new OpenLayers.Control.WMSGetFeatureInfo({
+                    url: baseUrlDoc, /*WMS服务基地址*/
+                    title: 'Identify features by clicking', /*控件文字标题*/
+                    layers: [wmsDocLayer], /*图层对象*/
+                    queryVisible: true/*是否开启查询*/
+                })
+            };
+
+            for (var i in infoControls) {
+                infoControls[i].events.register("getfeatureinfo", this, showInfo);
+                map.addControl(infoControls[i]);
+            }
+            infoControls.click.activate(); /*激活WMSGetFeatureInfo控件单击事件*/
+        }
+
+        /**
+        *显示单击点的地图要素信息
+        */
+        function showInfo(evt) {
+            if (evt.features && evt.features.length) {
+                highlightLayer.destroyFeatures();
+                highlightLayer.addFeatures(evt.features);
+                highlightLayer.redraw();
+            } else {
+                $("#toolSpanelCon,#toolspanel,#responseText").css("width", 600);
+                OpenLayers.Util.getElement('responseText').innerHTML = evt.text; /*在客户端id为“responseText”的div中显示要素信息*/
+            }
+        }
+
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer OGCWMSLayers Example</span> <span id="shortdesc">加载OGC的WMS图层</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <div id="info">
+                        <p>
+                            Click on the map to get feature info.</p>
+                        <div id="responseText">
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

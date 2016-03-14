@@ -1,0 +1,735 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>矢量地图文档目录服务</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    <!--分页-->
+    <link href="../../component/page/zzsc.css" rel="stylesheet" type="text/css" />
+    <script src="../../component/page/slides.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+        var serverType;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,
+                controls: [
+                        new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                        new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                        new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                        new OpenLayers.Control.MousePosition(),                 //此控件显示鼠标移动时，所在点的地理坐标
+                        new OpenLayers.Control.OverviewMap()                    //鹰眼
+                    ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldMKTVector", {
+                //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            initMapCon();
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            getmapdocList(); //获取矢量地图文档列表（用于获取指定地图文档信息功能）
+
+        }
+
+        function initMapCon() {
+            $("#resultCon").hide();
+            $("#mapCon").css("width", "100 %");
+            $("#mapCon").show();
+        }
+
+        /*==========================================矢量地图文档目录服务（设置地图文档信息）========================================*/
+        //设置地图文档名称
+        function setVectorDocName() {
+            //实例化Zondy.Service.Catalog.MapDoc类
+            var docCatalog = new Zondy.Service.Catalog.MapDoc();
+            //调用setDocName方法，设置需要搜索的地图文档为world
+            docCatalog.setDocName("world");
+        }
+        //设置地图在地图文档中的序号
+        function setMapIndex() {
+            //实例化Zondy.Service.Catalog.MapDoc类
+            var docCatalog = new Zondy.Service.Catalog.MapDoc();
+            //调用setDocName方法，设置需要搜索的地图文档为world
+            docCatalog.setDocName("world");
+            //调用setMapIndex方法，设置需要搜索地图文档中索引为0的地图
+            docCatalog.setMapIndex(0);
+        }
+        //设置图层在地图下的序号
+        function setLayerIndex() {
+            //实例化Zondy.Service.Catalog.MapDoc类
+            var docCatalog = new Zondy.Service.Catalog.MapDoc();
+            //调用setDocName方法，设置需要搜索的地图文档为world
+            docCatalog.setDocName("world");
+            //调用setMapIndex方法，设置需要搜索地图文档中索引为0的地图
+            docCatalog.setMapIndex(0);
+            //调用setLayerID方法，设置需要搜索地图文档中索引为0的地图下的索引为0的图层
+            docCatalog.setLayerID(0);
+        }
+
+        /* ==========================================矢量地图文档目录服务（获取矢量地图文档列表）=================================================== */
+
+        //获取地图文档列表
+        function getVectorMapdocList() {
+            initMapCon();
+            //实例化Zondy.Service.Catalog.MapDoc类
+            var docCatalog = new Zondy.Service.Catalog.MapDoc();
+            //调用getMapDocList方法，获取服务器地图文档列表，getDocListSuccess为回调函数名称
+            docCatalog.getMapDocList(getDocListSuccess);
+        }
+        //获取服务器地图文档列表成功后的回调函数
+        function getDocListSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到矢量地图文档！");
+                return;
+            }
+            else {
+                //显示结果
+                var strjson = new Array();
+                for (var i = 0; i < result.length; i++) {
+                    strjson[i] = {};
+                    for (var k = 0; k < 1; k++) {
+                        strjson[i]["矢量地图文档名称"] = result[i];
+                    }
+
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array(1);
+                for (var j = 0; j < 1; j++) {
+                    filedStr[j] = {};
+                    filedStr[j]["field"] = "矢量地图文档名称";
+                    filedStr[j]["title"] = "矢量地图文档名称";
+                    filedStr[j]["width"] = "50";
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#vectorMapdocListTable').datagrid({
+                    title: '查询结果',
+                    width: 180,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#vectorMapdocListTable").datagrid("loadData", data);
+            }
+        }
+
+        /* ==========================================矢量地图文档目录服务（获取指定矢量地图文档信息）=================================================== */
+        //获取地图文档信息
+        function getVectorMapdocInfo() {
+            initMapCon();
+            //指定地图文档相关信息的结构
+            var includeObj = new Zondy.Service.Catalog.IncludeStruct();
+            includeObj.includedetails = true;
+            includeObj.includeSubs = true;
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为world
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: $("#vectorMapdocList1 option:selected").text(), returnFullStyle: true, include: includeObj.toJSON() });
+            //调用getMapDocInfo函数，获取地图文档相关信息，getDocInfoSuccess为回调函数
+            docCatalog.getMapDocInfo(getDocInfoSuccess, true, false, false);
+        }
+        function getDocInfoSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到矢量地图文档信息！");
+                return;
+            }
+            else {
+                //显示结果
+                var strjson = new Array();
+                for (var i = 0; i < result.docInfoDetails.attribute.length; i++) {
+                    strjson[i] = {};
+                    for (var k = 0; k < 2; k++) {
+                        if (k == 0)
+                            strjson[i]["信息项"] = result.docInfoDetails.attribute[i].name;
+                        else
+                            strjson[i]["矢量地图文档信息"] = result.docInfoDetails.attribute[i].value;
+                    }
+
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array(2);
+                for (var j = 0; j < 2; j++) {
+                    filedStr[j] = {};
+                    if (j == 0) {
+                        filedStr[j]["field"] = "信息项";
+                        filedStr[j]["title"] = "信息项";
+                        filedStr[j]["width"] = "60";
+                    }
+                    else {
+                        filedStr[j]["field"] = "矢量地图文档信息";
+                        filedStr[j]["title"] = "矢量地图文档信息";
+                        filedStr[j]["width"] = "60";
+                    }
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#vectorMapdocInfoTable').datagrid({
+                    title: '查询结果',
+                    width: 180,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#vectorMapdocInfoTable").datagrid("loadData", data);
+            }
+        }
+        function getmapdocList() {
+            initMapCon();
+            //实例化Zondy.Service.Catalog.MapDoc类
+            var docCatalog = new Zondy.Service.Catalog.MapDoc();
+            //调用getMapDocList方法，获取服务器地图文档列表，getDocListSuccess为回调函数名称
+            docCatalog.getMapDocList(getListSuccess);
+        }
+        //获取地图文档信息成功后的回调函数
+        function getListSuccess(results) {
+            //将结果作为各功能项内指定地图文档选项的数据源
+            var svrSelect = $("#vectorMapdocList1,#vectorMapdocList2,,#vectorMapdocList3,#vectorMapdocList4");
+            for (var i = 0; i < results.length; i++) {
+                $("<option value='" + results[i] + "'>" + results[i] + "</option>").appendTo(svrSelect);
+            }
+        }
+
+        /* ==========================================矢量地图文档目录服务（获取指定地图信息）=================================================== */
+        //获取指定地图信息
+        function getMapInfo() {
+            initMapCon();
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为用户指定的地图文档,地图为索引值为0的地图
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: $("#vectorMapdocList2 option:selected").text(), mapIndex: 0, returnFullStyle: true });
+            //调用getMapInfo函数，获取地图相关信息，getMapInfoSuccess为回调函数
+            docCatalog.getMapInfo(getMapInfoSuccess, true, true);
+        }
+        //获取指定地图信息成功后的回调函数
+        function getMapInfoSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到地图信息！");
+                return;
+            }
+            else {
+                //显示结果
+                var arr = new Array();
+                //需要取出的信息项
+                arr = ["description", "isProj", "layerCount", "maxScale", "minScale", "name", "projtrans", "range", "subLayerNames", "symbolScale"];
+                var strjson = new Array();
+                for (var i = 0; i < arr.length; i++) {
+                    strjson[i] = {};
+                    for (var k = 0; k < 2; k++) {
+                        if (k == 0)
+                            strjson[i]["信息项"] = arr[i];
+                        else {
+                            var attri = arr[i];
+                            strjson[i]["地图信息"] = result[attri];
+                        }
+
+                    }
+
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array(2);
+                for (var j = 0; j < 2; j++) {
+                    filedStr[j] = {};
+                    if (j == 0) {
+                        filedStr[j]["field"] = "信息项";
+                        filedStr[j]["title"] = "信息项";
+                        filedStr[j]["width"] = "60";
+                    }
+                    else {
+                        filedStr[j]["field"] = "地图信息";
+                        filedStr[j]["title"] = "地图信息";
+                        filedStr[j]["width"] = "60";
+                    }
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#mapInfoTable').datagrid({
+                    title: '查询结果',
+                    width: 180,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#mapInfoTable").datagrid("loadData", data);
+            }
+        }
+
+        /* ==========================================矢量地图文档目录服务（获取地图中所有图层信息）=================================================== */
+        //获取地图中所有图层信息
+        function getLayersInfo() {
+            initMapCon();
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为用户指定的地图文档,地图为索引值为0的地图
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: $("#vectorMapdocList3 option:selected").text(), mapIndex: 0 });
+            //调用getLayersInfo函数，获取地图文档中所有图层相关信息，getLayersInfoSuccess为回调函数
+            docCatalog.getLayersInfo(getLayersInfoSuccess);
+        }
+        //获取地图中所有图层信息成功后的回调函数
+        function getLayersInfoSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到地图的图层信息！");
+                return;
+            }
+            else {
+                //需要取出的信息项
+                var strjson = new Array();
+                for (var i = 0; i < result.length; i++) {
+                    strjson[i] = {};
+                    for (var k = 0; k < 3; k++) {
+                        if (k == 0)
+                            strjson[i]["图层索引号"] = i;
+                        else if (k == 1) {
+                            strjson[i]["图层类型"] = result[i].GeomType;
+                        }
+                        else if (k == 2) {
+                            strjson[i]["图层名称"] = result[i].Name;
+                        }
+
+                    }
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array();
+                for (var j = 0; j < 3; j++) {
+                    filedStr[j] = {};
+                    if (j == 0) {
+                        filedStr[j]["field"] = "图层索引号";
+                        filedStr[j]["title"] = "图层索引号";
+                        filedStr[j]["width"] = "30";
+                    }
+                    else if (j == 1) {
+                        filedStr[j]["field"] = "图层类型";
+                        filedStr[j]["title"] = "图层类型";
+                        filedStr[j]["width"] = "40";
+                    }
+                    else if (j == 2) {
+                        filedStr[j]["field"] = "图层名称";
+                        filedStr[j]["title"] = "图层名称";
+                        filedStr[j]["width"] = "60";
+                    }
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#allLayersInfoTable').datagrid({
+                    title: '查询结果',
+                    width: 180,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#allLayersInfoTable").datagrid("loadData", data);
+            }
+        }
+
+        /* ==========================================矢量地图文档目录管理（获取指定地图图层信息）=================================================== */
+        //获取指定地图图层信息
+        function getLayerInfo() {
+            initMapCon();
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为用户指定的地图文档,地图为索引值为0的地图，图层为索引值为1的图层
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: $("#vectorMapdocList4 option:selected").text(), mapIndex: 0, layerID: 1 });
+            //调用getLayerInfo函数，获取地图图层相关信息，getLayerInfoSuccess为回调函数
+            docCatalog.getLayerInfo(getLayerInfoSuccess);
+        }
+        //获取指定地图图层信息成功后的回调函数
+        function getLayerInfoSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到图层的信息！");
+                return;
+            }
+            else {
+                //显示结果
+                var arr = new Array();
+                //需要取出的信息项
+                arr = ["CDynShowStyle", "GeomType", "IsValid", "LevelEnd", "LevelStart", "MaxScale", "MinScale", "Name", "Range", "Resolutions", "SRSId", "State", "SymbolScale", "URL", "Weight"];
+                var strjson = new Array();
+                for (var i = 0; i < arr.length; i++) {
+                    var attri = arr[i];
+                    strjson[i] = {};
+                    for (var k = 0; k < 2; k++) {
+                        if (k == 0)
+                            strjson[i]["信息项"] = arr[i];
+                        else {
+                            if (arr[i] == "Range")
+                                strjson[i]["地图信息"] = result[attri].xmin + "," + result[attri].ymin + "," + result[attri].xmax + "," + result[attri].ymax;
+                            else
+                                strjson[i]["地图信息"] = result[attri];
+                        }
+                    }
+                }
+                //填充datagrid
+                var data = {
+                    total: strjson.length + 1,
+                    rows: strjson
+                };
+                //结果显示字段
+                var filedStr = new Array(2);
+                for (var j = 0; j < 2; j++) {
+                    filedStr[j] = {};
+                    if (j == 0) {
+                        filedStr[j]["field"] = "信息项";
+                        filedStr[j]["title"] = "信息项";
+                        filedStr[j]["width"] = "50";
+                    }
+                    else {
+                        filedStr[j]["field"] = "地图信息";
+                        filedStr[j]["title"] = "地图信息";
+                        filedStr[j]["width"] = "80";
+                    }
+                    filedStr[j]["align"] = "center";
+
+                }
+
+                //创建结果显示列表
+                var dsDatagridRq = null;
+                dsDatagridRq = $('#layerInfoTable').datagrid({
+                    title: '查询结果',
+                    width: 180,
+                    height: 150,
+                    fitColumns: true,
+                    rownumbers: true,
+                    singleSelect: true,
+                    pageNumber: 1,
+                    pageSize: 5,
+                    pageList: [5, 10, 15, 20],
+                    nowrap: false,
+                    collapsible: true,
+                    columns: [filedStr]
+                });
+                $("#layerInfoTable").datagrid("loadData", data);
+            }
+        }
+
+        /* ===============================矢量地图文档目录服务（添加图层）============================ */
+        //向矢量地图文档中添加图层
+        function addLayer() {
+            //实例化layerinfoArr数组，用于存储图层信息
+            var layerInfoArr = new Array(1);
+
+            //实例化AddMapLayerInfo类，设置需添加的图层名称、图层索引号、图层存储的URL地址信息
+            layerInfoArr[0] = new Zondy.Service.Catalog.CAddMapLayerInfo("新增图层", -1, "gdbp://MapGisLocal/IMSWebGISGDB/sfcls/myTestreg");
+
+            //实例化MapDoc类，设置操作的地图文档为world ,指定地图为索引值为0的地图
+            var docCatalog11 = new Zondy.Service.Catalog.MapDoc({ docName: "WorldMKTVector", mapIndex: 0 });
+            docCatalog11.guid = vectorMapdoc.guid;
+            //调用addLayer方法，执行添加图层的操作，addLayerSuccess为结果回调函数
+            docCatalog11.addLayer(layerInfoArr, addLayerSuccess);
+        }
+        //添加图层成功后的回调
+        function addLayerSuccess(data) {
+            if (data) {
+                map.baseLayer.redraw(true);
+            }
+            else alert("添加失败！");
+        }
+        
+        /* ===============================矢量地图文档目录服务（删除图层）============================ */
+        //从矢量地图文档中删除指定图层
+        function deleteLayer() {
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为world,地图为索引值为0的地图，图层为索引值为1的图层
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: "WorldMKTVector_&_null", mapIndex: 0, layerID: 14 });
+            docCatalog.guid = vectorMapdoc.guid;
+            //调用deleteLayer方法，执行删除添加图层的操作，deleteLayerSuccess为结果回调函数
+            docCatalog.deleteLayer(deleteLayerSuccess);
+        }
+        //添加图层成功后的回调
+        function deleteLayerSuccess(data) {
+            if (data) {
+                map.baseLayer.redraw(true);
+            } else {
+                alert("删除图层失败！");
+            }
+
+        }
+
+        /* ==============================矢量地图文档目录服务（更改图层顺序）=========================== */
+        //更改图层顺序
+        function changeLayerIndex() {
+            //实例化newIndexArray数组，数组的长度需与要修改图层顺序的地图中图层的个数相同
+            var newIndexArray = new Array(9);
+            //newIndexArray数组中依次存储新的图层索引号
+            newIndexArray[0] = 0; //旧0号图层，新的图层索引号为6
+            newIndexArray[1] = 4; //旧1号图层，新的图层索引号为5
+            newIndexArray[2] = 1; //旧2号图层，新的图层索引号为4
+            newIndexArray[3] = 2; //旧3号图层，新的图层索引号为3
+            newIndexArray[4] = 3; //旧4号图层，新的图层索引号为2
+            newIndexArray[5] = 5; //旧5号图层，新的图层索引号为5
+            newIndexArray[6] = 6; //旧6号图层，新的图层索引号为6
+            newIndexArray[7] = 7; //旧7号图层，新的图层索引号为7
+            newIndexArray[8] = 8; //旧8号图层，新的图层索引号为8
+
+
+            //实例化Zondy.Service.Catalog.MapDoc类，设置操作的地图文档为world,地图为索引值为0的地图
+            var docCatalog = new Zondy.Service.Catalog.MapDoc({ docName: "WorldMKTVector", mapIndex: 0 });
+            docCatalog.guid = vectorMapdoc.guid;
+            //调用changeIndex方法，执行删除添加图层的操作，changeIndexSuccess为结果回调函数
+            docCatalog.changeIndex(newIndexArray, changeIndexSuccess);
+        }
+        //更改图层顺序成功后的回调
+        function changeIndexSuccess(data) {
+            if (data) {
+                map.baseLayer.redraw(true);
+            } else {
+                alert("修改图层顺序失败！");
+            }
+
+        }
+
+        /*====================================================分页效果==========================================*/
+        $(function () {
+            $("#xmSlide").xmSlide({
+                width: 950,
+                height: 460,
+                responsiveWidth: 710,
+                pagination: {
+                    effect: "fade"
+                },
+                effect: {
+                    fade: {
+                        speed: 400
+                    }
+                },
+                play: {
+                    effect: "fade",
+                    interval: 5000,
+                    auto: true,
+                    pauseOnHover: true,
+                    restartDelay: 2500
+                }
+            });
+        });
+
+    </script>
+</head>
+<body onload="init()">
+    <!--描述信息-->
+    <div id="header">
+        <span id="title">MapGIS IGServer CatalogService Example</span> <span id="shortdesc">
+            矢量地图文档目录服务</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+                <div id="resultCon">
+                    <img id="resultImg" />
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <div id="xmSlide" class="xmSlide">
+                        <div class="xmSlide_01">
+                            <!--设置地图文档名称-->
+                            <p>
+                                设置地图文档名称:<br />
+                                <span>（说明：此方法仅设置矢量地图文档名称，用于构建其他方法所需的参数，并不创建）</span><br />
+                                <input id="myVectorMapdocName" type="text" />
+                                <button onclick="setVectorDocName()">
+                                    确定</button>
+                            </p>
+                            <hr />
+                            <!--设置地图在地图文档中的序号-->
+                            <p>
+                                设置地图在地图文档中的序号:<br />
+                                <span>（说明：此方法仅设置地图在地图文档中的序号，用于构建其他方法所需的参数，并不创建）</span><br />
+                                <input id="myVectorMapdocIndex" type="text" />
+                                <button onclick="setMapIndex()">
+                                    确定</button>
+                            </p>
+                            <hr />
+                            <!--设置图层在地图下的序号-->
+                            <p>
+                                设置图层在地图下的序号:<br />
+                                <span>（说明：此方法仅设置图层在地图下的序号，用于构建其他方法所需的参数，并不创建）</span><br />
+                                <input id="myVectorMapdocLayerIndex" type="text" />
+                                <button onclick="setLayerIndex()">
+                                    确定</button>
+                            </p>
+                            <hr />
+                            <!--获取地图文档列表-->
+                            <p>
+                                获取地图文档列表：<br />
+                                <button onclick="getVectorMapdocList()">
+                                    确定</button></p>
+                            <table id="vectorMapdocListTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--获取指定地图文档信息-->
+                            <p>
+                                获取指定地图文档信息：<br />
+                                <span>地图文档：</span>
+                                <select id="vectorMapdocList1">
+                                </select><br />
+                                <button onclick="getVectorMapdocInfo()">
+                                    确定</button></p>
+                            <table id="vectorMapdocInfoTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!--第2页-->
+                        <div class="xmSlide_02">
+                            <!--获取指定地图信息-->
+                            <p>
+                                获取指定地图信息：<br />
+                                <span>地图文档：</span>
+                                <select id="vectorMapdocList2">
+                                </select>
+                                <button onclick="getMapInfo()">
+                                    确定</button></p>
+                            <table id="mapInfoTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--获取地图中所有图层信息-->
+                            <p>
+                                获取地图中所有图层信息：<br />
+                                <span>地图文档：</span>
+                                <select id="vectorMapdocList3">
+                                </select>
+                                <button onclick="getLayersInfo()">
+                                    确定</button></p>
+                            <table id="allLayersInfoTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--获取指定地图图层的相关信息-->
+                            <p>
+                                获取指定地图图层的相关信息：<br />
+                                <span>地图文档：</span>
+                                <select id="vectorMapdocList4">
+                                </select>
+                                <button onclick="getLayerInfo()">
+                                    确定</button></p>
+                            <table id="layerInfoTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--添加图层-->
+                            <p>
+                                添加图层：<br />
+                                <span>地图文档：</span>
+                                <select id="vectorMapdocList5">
+                                    <option value="WorldMKTVector">WorldMKTVector</option>
+                                </select>
+                                <button onclick="addLayer()">
+                                    确定</button></p>
+                            <table id="addSuccLayerListTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--删除图层-->
+                            <p>
+                                删除图层：<br />
+                                <button onclick="deleteLayer()">
+                                    确定</button></p>
+                            <table id="dsLayerListTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                            <hr />
+                            <!--更改图层顺序-->
+                            <p>
+                                更改图层顺序：<br />
+                                <button onclick="changeLayerIndex()">
+                                    确定</button></p>
+                            <table id="rcsRdsListTable">
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!--slide-->
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

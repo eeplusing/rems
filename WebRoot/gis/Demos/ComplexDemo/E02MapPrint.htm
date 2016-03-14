@@ -1,0 +1,254 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>Web地图打印</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig:true,
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition(),                 //此控件显示鼠标移动时，所在点的地理坐标
+                    new OpenLayers.Control.OverviewMap()                    //鹰眼
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldJWVector", {
+                //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+
+            initPrintRange();
+        }
+
+        /*============================================地图打印===================================================*/
+        var printGDBStr = "";
+        function initPrintRange() {
+            printGDBStr = "";
+            getMapLayersURL700325();
+        }
+
+        //拉框打印
+        function MapPrintAnalysis() {
+            clearprintfunc();
+            var drawLayer = new OpenLayers.Layer.Vector("printRange");
+            map.addLayers([drawLayer]); //将地图文档图层加载到地图中
+            var drawControl = new OpenLayers.Control.DrawFeature(drawLayer, OpenLayers.Handler.RegularPolygon, { id: "printboxC", handlerOptions: { snapAngle: 90, irregular: true} });
+            drawControl.featureAdded = webPrint;
+            map.addControl(drawControl);
+            drawControl.activate();
+        }
+
+        function getLayersGDBURL(mapName) {
+            var url = "http://" + window.location.host.split(":")[0] + ":6163/igs/rest/mrcs/docs/" + encodeURIComponent(mapName) + "/0/layers?f=json";
+            var request = new Zondy.Service.HttpRequest();
+            request.ajax(
+                url,
+                null,
+                function (res) {
+                    if (res != null && res.length > 0) {
+                        for (var i = 0; i < res.length; i++) {
+                            if (res[i]) {
+                                printGDBStr += res[i].URL + ",";
+                                IsMapLayer = true;
+                            }
+                        }
+                    }
+                },
+                'get',
+                "",
+                "json"
+            );
+        }
+
+        //根据map获取当前的图层URL
+        function getMapLayersURL700325() {
+            var layersArr = map.layers;
+            var IsMapLayer = false;
+            if (layersArr) {
+                if (layersArr.length > 0) {
+                    for (var i = 0; i < layersArr.length; i++) {
+                        if (layersArr[i]) {
+                            if (layersArr[i].CLASS_NAME == "Zondy.Map.Doc") {
+                                var docNameStr = "";
+                                if (layersArr[i].docName) {
+                                    getLayersGDBURL(layersArr[i].docName);
+                                }
+                            } else {
+
+                                if (layersArr[i].gdbps) {
+                                    if (layersArr[i].gdbps[0] != "") {
+                                        var layersplitarr = layersArr[i].gdbps[0].split(",");
+                                        for (var j = 0; j < layersplitarr.length; j++) {
+                                            var flagUrl = layersplitarr[j].indexOf('?');
+                                            if (flagUrl == 1) {
+                                                printGDBStr += layersplitarr[j].split("?")[1].split("=")[1] + ",";
+
+                                            } else {
+                                                printGDBStr += layersplitarr[j] + ",";
+                                            }
+                                            IsMapLayer = true;
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        //拉框回调函数
+        function webPrint(feature) {
+            addLoadingByPrintMap();
+            var Rectangle = new Zondy.Object.Rectangle();
+            Rectangle.setByOL(feature.geometry);
+            feature.destroy();
+            var string = "";
+            var workflowService = new Zondy.Service.AnalysisBase();
+            workflowService.ip = window.location.host.split(":")[0];
+            workflowService.port = "6163";
+            workflowService.flowID = "600314";
+            if (printGDBStr == "" || printGDBStr == null) {
+                $("#BufferLoading").remove();
+                $("#dlgMaskTop").remove();
+                alert("正在获取打印地图的图层信息，请稍后重新拉框查询");
+                return;
+            }
+            str = printGDBStr.substring(0, printGDBStr.length - 1);
+            workflowService.layerURLStr = encodeURIComponent(str);
+            window.printresult = "images" + parseInt(10000 * Math.random()) + ".jpg";
+
+            //获取站点绝对地址。使用httpRequest()获取，请求的方法位于img/PrintImage/ashx/GetImgURL.ashx。
+            window.path = "";
+            var request = new Zondy.Service.HttpRequest();
+            var url = "../../img/PrintImage/ashx/GetImgURL.ashx?ran=" + Math.random();
+            request.ajax(
+                url,
+                null,
+                function (res) {
+                    var clientWidth = $(document.body).width() - 10;
+                    window.path = res + window.printresult;  //得到图片的绝对路径
+                    workflowService.imageFilePath = encodeURIComponent(window.path);
+                    workflowService.dpi = 72.00;
+                    workflowService.colorMode = 3; //颜色模式： 3/4（RGB/CMYK）
+                    workflowService.mapRectStr = Rectangle.xmin + "," + Rectangle.ymin + "," + Rectangle.xmax + "," + Rectangle.ymax;
+                    var layeroutW = clientWidth;
+                    var layeroutH = parseInt(((Rectangle.ymax - Rectangle.ymin) * layeroutW) / (Rectangle.xmax - Rectangle.xmin));
+                    workflowService.layoutWidth = layeroutW; //地图版面宽，单位mm
+                    workflowService.layoutHeight = layeroutH; //地图版面高，单位mm
+                    workflowService.pageWidth = layeroutW + 10; //纸张宽度，单位mm
+                    workflowService.pageHeight = layeroutH + 10; //纸张高度，单位mm
+                    workflowService.SOrig = false; //是否还原显示
+                    workflowService.execute(webPrintSuccess, "post", false, "json"); //设置回调函数，数据请求方式，是否异步执行，返回结果格式            
+                },
+                'get',
+                "",
+                "text"
+            );
+
+        }
+
+
+        function webPrintSuccess(data) {
+            $("#BufferLoading").remove();
+            $("#dlgMaskTop").remove();
+            //    if (data.results != null && data.results[0].Value != "False") {
+            if (data.messages[0] != null) {
+                var siteurl = window.location.href.toString();
+                var url = "../../img/PrintImage/PrintImage/" + window.printresult; //siteurl.substring(0, siteurl.length - 9) + ";
+                $.messager.confirm('打印结果', '生成图片成功是否进行查看', function (r) {
+                    if (r) {
+                        clearprintfunc();
+                        window.open(url);
+                    }
+                });
+            }
+            else alert("获取打印地图失败！");
+        }
+        function clearprintfunc() {
+            var layer = map.getLayersByName("printRange");
+            if (layer[0]) {
+                map.removeLayer(layer[0]);
+            }
+            var printControl = map.getControl("printboxC");
+            if (printControl) {
+                printControl.deactivate();
+                map.removeControl(printControl);
+            }
+        }
+
+        //添加进度条
+        function addLoadingByPrintMap() {
+            var w = $("#mapSpanelCon").width();
+            var h = $("#mapSpanelCon").height();
+            var lx = w / 2 - 85;
+            var ly = h / 2 - 121;
+            $("#BufferLoading").remove();
+            $("#dlgMaskTop").remove();
+            var sbLogoStr = '<div id="dlgMaskTop" class="dlgMaskTop"></div>';
+            sbLogoStr += '<div id="BufferLoading" style="z-index:5000;position:absolute;left:' + lx + 'px;top:' + ly + 'px"><div style="margin-left:-40px;"><img style="width:250px;height:182px;" src="../../img/imgForE02MapPrint/loading.jpg"></img></div><div style="margin-top:-50px;font:微软雅黑;font-size:14px;font-weight:bold;color:Gray">正在生成图片，请稍后...</div></div>';
+            $("#mapSpanelCon").append(sbLogoStr);
+        }
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer MapPrint Example</span> 
+        <span id="shortdesc">Web地图打印</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        Web地图打印</p>
+                    <span>拉框打印：点击拉框打印的按钮后，在地图上拉框选择需要打印的区域，即可生成图片。</span><br/>
+                  <button  class="functionButton" id="Button1" title="拉框打印" onclick="MapPrintAnalysis()" >拉框打印</button>
+                  <button  class="functionButton" id="Button1" title="清除状态" onclick="clearprintfunc()" >清除状态</button>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

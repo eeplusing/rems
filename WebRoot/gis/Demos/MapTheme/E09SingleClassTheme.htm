@@ -1,0 +1,179 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+     <title>单值专题图</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, docLayer;
+        var oper;       //专题图服务类
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息 
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            docLayer = new Zondy.Map.Doc("MapGIS IGS MapDocLayer", "WorldJWVector", {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([docLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+
+            //初始化专题图服务类
+            oper = new Zondy.Service.ThemeOper();
+            oper.ip = "127.0.0.1";
+            oper.port = "6163";
+
+            oper.guid = docLayer.guid;
+
+        }
+
+        //创建专题图
+        function createTheme() {
+            //初始化Zondy.Object.Theme.ThemesInfo，用于设置需添加的专题相关信息
+            var themesInfoArr = [];
+            themesInfoArr[0] = new Zondy.Object.Theme.ThemesInfo();
+            themesInfoArr[0].LayerName = "世界政区"; 		//设置图层名层
+            themesInfoArr[0].ThemeArr = []; 			    //初始化指定图层的专题图信息对象，之后再给该数组赋值
+            //实例化CMultiClassTheme类
+            themesInfoArr[0].ThemeArr[0] = new Zondy.Object.Theme.CMultiClassTheme();
+            themesInfoArr[0].ThemeArr[0].Name = "单值专题图";
+            themesInfoArr[0].ThemeArr[0].IsBaseTheme = true;    //指定为单值的专题图
+            themesInfoArr[0].ThemeArr[0].Visible = true;
+            themesInfoArr[0].ThemeArr[0].GeoInfoType = "Reg";
+
+            //未分段值的图形信息设置
+            themesInfoArr[0].ThemeArr[0].DefaultInfo = new Zondy.Object.Theme.CThemeInfo();
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.Caption = "未分类";
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo = new Zondy.Object.Theme.CRegInfo();
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.Ovprnt = true;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.Angle = 0;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.EndClr = 0;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.FillClr = 17;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.FillMode = 0;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.FullPatFlg = true;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.PatClr = 45;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.PatHeight = 5;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.PatWidth = 5;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.PatID = 0;
+            themesInfoArr[0].ThemeArr[0].DefaultInfo.RegInfo.OutPenW = 1;
+
+            //分段取值设置
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr = [];
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0] = new Zondy.Object.Theme.ExpInfo();
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].Expression = "name";
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr = [];
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[0] = new Zondy.Object.Theme.ItemValue();
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[0].StartValue = "中国";
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[0].EndValue = "中国";
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[0].ClassItemType = 1; //1代表唯一值即单值
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[1] = new Zondy.Object.Theme.ItemValue();
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[1].StartValue = "俄罗斯";
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[1].EndValue = "俄罗斯";
+            themesInfoArr[0].ThemeArr[0].ExpInfoArr[0].ItemValueArr[1].ClassItemType = 1; //1代表唯一值即单值
+
+            //分段项的图形信息设置
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr = [];
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[0] = new Zondy.Object.Theme.CThemeInfo();
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[0].Caption = "中国"; //不设置则采用单值作为标题
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[0].IsVisible = true;
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[0].RegInfo = new Zondy.Object.Theme.CRegInfo();
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[0].RegInfo.FillClr = 110;
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[1] = new Zondy.Object.Theme.CThemeInfo();
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[1].Caption = "俄罗斯"; //不设置则采用单值作为标题
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[1].IsVisible = true;
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[1].RegInfo = new Zondy.Object.Theme.CRegInfo();
+            themesInfoArr[0].ThemeArr[0].MultiClassThemeInfoArr[1].RegInfo.FillClr = 26;
+
+            //给指定地图文档指定图层添加专题图
+            oper.addThemesInfo("WorldJWVector", "1/0", themesInfoArr, onSingleClassTheme);
+        }
+
+        //更新专题图
+        function updateTheme() {
+            oper.getThemesInfo("WorldJWVector", "1/0", function (themesInfoArr) {
+                if (themesInfoArr.length > 0 && themesInfoArr[0].ThemeArr != null) {
+                    var i;
+                    for (i = 0; i < themesInfoArr[0].ThemeArr.length; i++) {
+                        if (themesInfoArr[0].ThemeArr[i].Type == "CMultiClassTheme") {
+                            themesInfoArr[0].ThemeArr[i].MultiClassThemeInfoArr[0].RegInfo.FillClr = 256;
+                            themesInfoArr[0].ThemeArr[i].MultiClassThemeInfoArr[1].RegInfo.FillClr = 263;
+                            themesInfoArr[0].ThemeArr[i].DefaultInfo.RegInfo.FillClr = 270;
+
+                            oper.updateThemesInfo("WorldJWVector", "1/0", themesInfoArr, onSingleClassTheme);
+                            break;
+                        }
+                    }
+                    if (i == themesInfoArr[0].ThemeArr.length)
+                        alert("没有该专题信息");
+                }
+                else
+                    alert("没有该专题信息");
+            });
+        }
+
+        //删除专题图
+        function deleteTheme() {
+            oper.removeThemesInfo("WorldJWVector", "1/0", onSingleClassTheme);
+        }
+
+        //调用专题图成服务功后的回调
+        function onSingleClassTheme(flg) {
+            if (flg) {
+                //刷新地图，即重新加载生成专题图后的地图文档
+                docLayer.clearGrid();
+                docLayer.redraw(true);
+            }
+            else {
+                return false;
+            }
+        }
+    </script>
+</head>
+<body onload="init()">
+  <div id="header">
+        <span id="title">MapGIS IGServer SingleClassTheme Example</span> <span id="shortdesc">单值专题图</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        单值专题图：</p>
+                     <!--创建专题图-->
+                    <input type="button" id="createThemeBtn" value="创建专题图" onclick="createTheme()" /><br />
+                    <br />
+                    <!--更新专题图-->
+                    <input type="button" id="updateThemeBtn" value="更新专题图" onclick="updateTheme()" /><br />
+                    <br />
+                    <!--删除专题图-->
+                    <input type="button" id="deleteThemeBtn" value="删除专题图" onclick="deleteTheme()" /><br />
+                    <br />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

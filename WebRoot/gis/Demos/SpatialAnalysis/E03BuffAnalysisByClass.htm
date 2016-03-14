@@ -1,0 +1,206 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+     <title>类缓冲区分析</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorLayer;
+        var resultBaseUrl = "gdbp://MapGisLocal/OpenLayerVecterMap/sfcls/"; //缓存结果图层的基地址
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", ["gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流"], {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 1);
+        }
+
+        /*============================================单圈缓冲区分析===================================================*/
+        
+        //执行单圈缓冲区分析
+        function singleBuffAnalysis(anaType) {
+
+            if (anaType = "rad") {
+                //实例化ClassBufferBySingleRing类
+                var clsBufBySR = new Zondy.Service.ClassBufferBySingleRing({
+                    ip: "127.0.0.1",
+                    port: "6163",
+                    leftRad: 0.05, 		//缓冲时要素左侧缓冲半径
+                    rightRad: 0.05, 		//缓冲时要素右侧缓冲半径
+                    isByAtt: false			//不允许根据属性字段设置缓冲区半径
+                });
+            }
+            else if (anaType = "att") {
+                //实例化ClassBufferBySingleRing类
+                var clsBufBySR = new Zondy.Service.ClassBufferBySingleRing({
+                    ip: "127.0.0.1",
+                    port: "6163",
+                    isByAtt: true, 		//允许根据属性字段设置缓冲区半径
+                    fldName: "长度"			//用于设置缓冲半径的属性字段名称
+                });
+            }
+            else {
+                alert("请正确输入分析类型");
+                return;
+            }
+
+            //调用Zondy.Service.ClassBufferBase基类公共属性
+            clsBufBySR.srcInfo = "gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流";
+            var resultname = "singleBuffAnalysisResultLayer" + getCurentTime();
+            clsBufBySR.desInfo = resultBaseUrl + resultname;
+
+            //调用基类Zondy.Service.AnalysisBase的execute方法执行类缓冲分析，AnalysisSuccess为回调函数
+            clsBufBySR.execute(AnalysisSuccess);
+        }
+
+        /*============================================多圈缓冲区分析===================================================*/
+        //执行多圈缓冲区分析
+        function multiBuffAnalysis() {
+            //实例化ClassBufferByMultiplyRing类
+            var clsBufByMR = new Zondy.Service.ClassBufferByMultiplyRing({
+                ip: "127.0.0.1",
+                port: "6163",
+                radiusStr: "0.01,0.05,1"			//多圈缓冲分析各圈的缓冲半径
+            });
+            //调用Zondy.Service.ClassBufferBase基类公共属性
+            clsBufByMR.srcInfo = "gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界河流";
+            var resultname = "multiBuffAnalysisResultLayer" + getCurentTime();
+            clsBufByMR.desInfo = resultBaseUrl + resultname;
+
+            //调用基类Zondy.Service.AnalysisBase的execute方法执行类缓冲分析，AnalysisSuccess为回调函数
+            clsBufByMR.execute(AnalysisSuccess);
+        }
+        
+        //分析成功后的回调
+        function AnalysisSuccess(data) {
+            if (data.results) {
+                if (data.results.length != 0) {
+                    var resultLayerUrl = data.results[0].Value;
+                    //将结果图层添加到地图视图中显示
+                    var resultLayer = new Zondy.Map.Layer("MapGIS IGS BuffAnalyResultLayer", [resultBaseUrl + resultLayerUrl], {
+                        ip: "127.0.0.1",
+                        port: "6163",
+                        isBaseLayer: false
+                    });
+                    map.addLayer(resultLayer);
+                }
+                
+            }
+            else {
+                alert("缓冲失败，请检查参数！");
+            }
+        }
+
+        //清除客户端分析结果信息
+        function clearA() {
+            if (map.layers.length >1) {
+                for (var i = map.layers.length - 1; i > 0; i--) {
+                    map.removeLayer(map.layers[i], false);
+                } //for
+            }//if
+            else
+                return ;
+        }
+
+        /*========================================获取当前时间（如：2015-09-09 12:00）===================================================*/
+        //当前日期加时间(如:2009-06-12 12:00)
+        function getCurentTime() {
+            var now = new Date();
+
+            var year = now.getFullYear();       //年
+            var month = now.getMonth() + 1;     //月
+            var day = now.getDate();            //日
+
+            var hh = now.getHours();            //时
+            var mm = now.getMinutes();          //分
+
+            var clock = year + "-";
+
+            if (month < 10)
+                clock += "0";
+
+            clock += month + "-";
+
+            if (day < 10)
+                clock += "0";
+
+            clock += day + " ";
+
+            if (hh < 10)
+                clock += "0";
+
+            clock += hh + ":";
+            if (mm < 10) clock += '0';
+            clock += mm;
+            return (clock);
+        }
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer BuffAnalysisByClass Example</span> <span id="shortdesc">
+            类缓冲区分析</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        类缓冲区分析：</p>
+                    <!--单圈缓冲区分析-->
+                    <input type="button" id="singleBuffAnalysisBtn" value="单圈缓冲区分析" onclick="singleBuffAnalysis()" />
+                    <br />
+                    <br />
+                    <br />
+                    <!--多圈缓冲区分析-->
+                    <input type="button" id="multiBuffAnalysisBtn" value="多圈缓冲区分析" onclick="multiBuffAnalysis()" />
+                    <br />
+                    <br />
+                    <br />
+                     <!--清除客户端分析结果-->
+                    <input type="button" id="Button1" value="清除结果" onclick="clearA()" />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

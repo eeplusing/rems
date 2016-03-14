@@ -1,0 +1,111 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>图层显示控制</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, docLayer;
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            docLayer = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldJWVector", {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([docLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+        }
+        /*=================================================图层显示控制==========================================*/
+        function layerCtr(s) {
+            if (s == "layerCtr") {
+                //zdlayer.layers = "show:0,1,3"; 
+                var layerStr = document.getElementById("layerCondition").value; //重新设置文档中的显示层
+                if (layerStr != null && docLayer != null) {
+                    docLayer.layers = layerStr;
+                }
+            }
+            if (s == "featureCtr") {
+                //zdlayer.filters = "0:ID>100"; //重新控制文档中索引为3的层的显示要素
+                var featureStr = document.getElementById("featureCondition").value;
+                if (featureStr != null && docLayer != null) {
+                    docLayer.filters = featureStr;
+                }
+            }
+            refresh();
+        }
+
+        //设置图层隐藏
+        function layerHide() {
+            if (docLayer.visibility) {
+                docLayer.visibility = false; //隐藏图层
+            }
+            refresh();
+        }
+
+        //设置图层可见
+        function layerDisplay() {
+            if (docLayer.visibility == false) {
+                docLayer.visibility = true; //显示图层
+            }
+            refresh();
+        }
+
+        //刷新地图
+        function refresh() {
+            map.baseLayer.clearGrid();
+            map.baseLayer.redraw();
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer MapLayerControl Example</span> 
+        <span id="shortdesc">地图图层显示控制功能（图层与要素过滤显示、图层开关）</span>
+    </div>
+     <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        地图图层显示控制功能：</p>
+
+                    <div class="lineStyle">
+                            图层过滤条件：<input type="text" id="layerCondition" value="show:0,1,3" size="13" /><br/><br/>
+                        </div>
+                    <button id="layer" class="functionButton"  onclick="layerCtr('layerCtr') ">图层控制</button><hr/>
+
+                        <div class="lineStyle">
+                            要素显示过滤条件：<input type="text" id="featureCondition" value="0:ID>50" size="13" />
+                        </div><br/>
+                        <button id="feature" class="functionButton"  onclick="layerCtr('featureCtr') ">要素控制</button><br/><br/>
+                        <input type="button" id="hide" class="functionButton" value="关闭图层" onclick="layerHide()"  /><br/><br/>
+                        <input type="button" id="display" class="functionButton" value="显示图层" onclick="layerDisplay()"  /> 
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

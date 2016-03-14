@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>拓扑分析</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorLayer;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorLayer = new Zondy.Map.Layer("MapGIS IGS VectorLayer", ["gdbp://MapGisLocal/OpenLayerVecterMap/ds/世界地图经纬度/sfcls/世界政区"], {
+                ip: "127.0.0.1",
+                port: "6163",
+                isBaseLayer: true
+            });
+            
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(114.155355, 30.784218), 7);
+        }
+
+        /*============================================拓扑分析===================================================*/
+        //执行拓扑分析
+        function topAnalysis() {
+            //初始化TopAnalysis类
+            var topParam = new Zondy.Service.TopAnalysis({
+                ip: "127.0.0.1",
+                port: "6163"
+            });
+            //创建点对象
+            var pointObj = new Zondy.Object.GPoint(114.155355, 30.784218);
+            //调用setPnt方法，设置点类型
+            topParam.setPnt(pointObj);
+            //创建区几何对象
+            var regionObj = new Zondy.Object.GRegion([
+                    new Zondy.Object.AnyLine([new Zondy.Object.Arc([
+                            new Zondy.Object.Point2D(114.301586, 30.533613),
+                            new Zondy.Object.Point2D(114.301586, 30.496517),
+                            new Zondy.Object.Point2D(114.544453, 30.496517),
+                            new Zondy.Object.Point2D(114.444453, 30.533613),
+                            new Zondy.Object.Point2D(114.401586, 30.533613)
+                        ])
+                        ])
+                ]);
+            //调用setRelativeObj方法，设置拓扑分析参照物
+            topParam.setRelativeObj(regionObj);
+            
+            //将点几何和区几何添加到地图进行显示（非必需，仅仅为了在地图上高亮显示图形）
+            var graphicLayer = new OpenLayers.Layer.Vector("graphicLayer");
+            graphicLayer.styleMap.styles["default"].defaultStyle.strokeColor = "orange";  //设置默认样式策略中绘制点要素的画笔的颜色
+            graphicLayer.styleMap.styles["default"].defaultStyle.strokeWidth = 3;  //设置画笔宽度
+            graphicLayer.styleMap.styles["default"].defaultStyle.fillColor = "red";  //设置点要素的填充色
+
+            var pointgeom = new OpenLayers.Geometry.Point(pointObj.Dot.x, pointObj.Dot.y); //将ZD的点几何转换成OpenLayers的点几何
+            var pointFeature = new OpenLayers.Feature.Vector(pointgeom); //由O2点几何构建点要素
+            //将ZD的区几何转换成OpenLayers的点几何
+            var linPointArr = [];
+            for (var i = 0; i < regionObj.Rings.length; i++) {
+                var ring = regionObj.Rings[i].Arcs[0].Dots;
+                var points = [];
+                for(var j=0;j<ring.length;j++) {
+                    var point = new OpenLayers.Geometry.Point(ring[j].x, ring[j].y);
+                    points.push(point);
+                }
+                var results = new OpenLayers.Geometry.LinearRing(points);
+                linPointArr.push(results);
+            }
+            var regiongeom = new OpenLayers.Geometry.Polygon(linPointArr); 
+            var regionFeature = new OpenLayers.Feature.Vector(regiongeom); //由O2点几何构建点要素
+            graphicLayer.addFeatures([pointFeature, regionFeature]); //将要素添加到图层
+            map.addLayer(graphicLayer);
+
+
+            //设置拓扑分析半径
+            topParam.nearDis = "0.05";
+            //执行拓扑分析，成功执行后返回执行结果，onSuccess为回调函数
+            topParam.execute(AnalysisSuccess);
+        }
+        //分析成功后的回调
+        function AnalysisSuccess(data) {
+            $("#topResult").val(data);
+        }
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer TopAnalysis Example</span> <span id="shortdesc">
+            拓扑分析</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        拓扑分析</p>
+                    <input type="button" id="topAnalysisBtn" value="拓扑分析" onclick="topAnalysis()" /><br/>
+                    <div class="lineStyle">分析结果：<input id="topResult" type="text" disabled="disabled"/></div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

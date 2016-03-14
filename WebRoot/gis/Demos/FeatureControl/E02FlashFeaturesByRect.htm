@@ -1,0 +1,274 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>框选要素闪烁示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+        var vecLayerFF = null, vLayerFF = null;      //矢量要素图层
+        var selFeatureCtrlFlash = null; //矢量要素选择控件
+        var selectFlashFea;
+        var numFlashFea = 0;
+        var kFlashFea = 0;
+        var timerFlashFea;
+        var style_green;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig:true,     //自动获取MapGIS IGServer发布的地图的信息       
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                 //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldMKTVector", {
+            //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            
+            initFlashFeaturesByRect();//初始化闪烁图层
+        }
+
+        //初始化
+        function initFlashFeaturesByRect() {
+            vecLayerFF = new OpenLayers.Layer.Vector("矢量图层KXYS");
+            selectFlashFea = new OpenLayers.Layer.Vector("SelectionKXYS");
+            map.addLayers([vecLayerFF, selectFlashFea]);
+            numFlashFea = 20;
+            kFlashFea = 0;
+            style_green = {
+                fillColor: "#ff0000",
+                fillOpacity: 1,
+                hoverFillColor: "white",
+                hoverFillOpacity: 0.8,
+                strokeColor: "#ff0000",
+                strokeOpacity: 1,
+                strokeLinecap: "round",
+                strokeWidth: 2,
+                strokeDashstyle: "solid",
+                hoverStrokeColor: "red",
+                hoverStrokeOpacity: 1,
+                hoverStrokeWidth: 0.2,
+                pointRadius: 6,
+                hoverPointRadius: 1,
+                hoverPointUnit: "%",
+                pointerEvents: "visiblePainted",
+                cursor: "inherit"
+            };
+
+            //图层要素选择控件
+            selFeatureCtrlFlash = new OpenLayers.Control.SelectFeature(vecLayerFF, {
+                highlightOnly: false,
+                box: true
+            });
+
+            //图层要素选择事件
+            vecLayerFF.events.on({
+                'featureselected': function (e) {
+                    if (e.feature.geometry.CLASS_NAME == "OpenLayers.Geometry.Point") {
+                        var pnt = new OpenLayers.Feature.Vector(new OpenLayers.Geometry.Point(e.feature.geometry.x, e.feature.geometry.y), null, style_green);
+                        selectFlashFea.addFeatures([pnt]);
+                    }
+                },
+                'featureunselected': function (e) {
+                    selectFlashFea.removeAllFeatures();
+                }
+            });
+
+            map.addControl(selFeatureCtrlFlash);
+
+            //按钮状态设置
+            document.getElementById('disp').disabled = false;
+            document.getElementById('Button1').disabled = true;
+            document.getElementById('Button4').disabled = true;
+            document.getElementById('Button3').disabled = true;
+            document.getElementById('Button2').disabled = true;
+        }
+
+        /*==========================================功能按钮响应函数===================================================*/
+        function toggleLayerFlashFea() {
+            if (selectFlashFea != null) {
+                if (selectFlashFea.visibility) {
+                    selectFlashFea.setVisibility(false);
+                }
+                else {
+                    selectFlashFea.setVisibility(true);
+                }
+            }
+        }
+        //开始闪烁
+        function startFlashFhFea() {
+            var getSelectKXYS = selectFlashFea.features;
+            if (getSelectKXYS == null || getSelectKXYS.length <= 0) {
+                $.messager.alert("提示", "当前没有框选任何要素，请重新选择！", "info");
+                return;
+            }
+            //设置按钮状态
+            document.getElementById('disp').disabled = true;
+            document.getElementById('Button1').disabled = true;
+            document.getElementById('Button4').disabled = true;
+            document.getElementById('Button3').disabled = true;
+            document.getElementById('Button2').disabled = false;
+            timerFlashFea = setInterval(toggleLayerFlashFea, 500);
+        }
+        //停止闪烁
+        function stopFlashFhFea() {
+            clearInterval(timerFlashFea);
+            selectFlashFea.redraw();   
+            vecLayerFF.redraw();
+            selectFlashFea.setVisibility(false);
+            document.getElementById('disp').disabled = true;
+            document.getElementById('Button3').disabled = false;
+            document.getElementById('Button2').disabled = true;
+            document.getElementById('Button1').disabled = true;
+            document.getElementById('Button4').disabled = false;
+        }
+
+        //随机生成矢量要素
+        function randomCreateFeatureFhFea(vLayer, numFlashFea) {
+            var curMapBound = map.getExtent();
+            var w = curMapBound.right - curMapBound.left;
+            var h = curMapBound.top - curMapBound.bottom;
+
+            if (vLayer == null) {
+                vLayer = new OpenLayers.Layer.Vector("矢量图层");
+                map.addLayers([vLayer]);
+            }
+            else {
+                vLayer.removeAllFeatures();
+            }
+            var curResolution = map.getResolution();
+            for (var i = 0; i < numFlashFea; i++) {
+                var x = Math.random() * w + curMapBound.left;
+                var y = Math.random() * h + curMapBound.bottom;
+                var newPoint = new OpenLayers.Geometry.Point(x, y);
+                var pntFeature = new OpenLayers.Feature.Vector(newPoint, null, null);
+                vLayer.addFeatures([pntFeature]);
+            }
+        }
+
+        //生成要素
+        function randFeatures() {
+            //生成随机要素
+            randomCreateFeatureFhFea(vecLayerFF, 50);
+            //设置生成要素按钮为不可选状态
+            document.getElementById('disp').disabled = true;
+            //设置框选要素按钮为可选状态
+            document.getElementById('Button1').disabled = false;
+            //设置停止拉框按钮为不可选状态
+            document.getElementById('Button4').disabled = true;
+            //设置开始闪烁按钮为不可选状态
+            document.getElementById('Button3').disabled = true;
+            //设置停止闪烁按钮为不可选状态
+            document.getElementById('Button2').disabled = true;
+        }
+        
+        //框选要素
+        function boxSelect() {
+            selectFlashFea.setVisibility(false);
+            selFeatureCtrlFlash.activate();
+            document.getElementById('disp').disabled = true;
+            document.getElementById('Button1').disabled = true;
+            document.getElementById('Button2').disabled = true;
+            document.getElementById('Button3').disabled = false;
+            document.getElementById('Button4').disabled = true;
+
+        }
+        
+        //停止框选
+        function stopBoxFlashFea() {
+            document.getElementById('disp').disabled = true;
+            document.getElementById('Button1').disabled = false;
+            document.getElementById('Button2').disabled = true;
+            document.getElementById('Button3').disabled = true;
+            document.getElementById('Button4').disabled = false;
+
+            selFeatureCtrlFlash.unselectAll();
+            selFeatureCtrlFlash.deactivate();
+            vecLayerFF.redraw();
+            //停止闪烁
+            selectFlashFea.removeAllFeatures();
+            selectFlashFea.setVisibility(false);
+
+        }
+        
+        //清除要素
+        function closeFFea() {
+            if (timerFlashFea) {
+                clearInterval(timerFlashFea);
+            }
+            document.getElementById('disp').disabled = false;
+            document.getElementById('Button1').disabled = true;
+            document.getElementById('Button2').disabled = true;
+            document.getElementById('Button3').disabled = true;
+            document.getElementById('Button4').disabled = true;
+            if (selFeatureCtrlFlash) {
+                selFeatureCtrlFlash.deactivate();
+            }
+            map.removeLayer(vecLayerFF);
+            map.removeLayer(selectFlashFea);
+            map.removeControl(selFeatureCtrlFlash);
+            vecLayerFF = null;
+            selectFlashFea = null;
+            selFeatureCtrlFlash = null;
+            numFlashFea = 0;
+            kFlashFea = 0;
+            timerFlashFea = null;
+            style_green = null;
+            isFFCheck = false;
+        }
+        function clearFlashFea() {
+            closeFFea();
+            isFFCheck = true;
+            initFlashFeaturesByRect();
+        }
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer FlashFeaturesByRect Example</span> 
+        <span id="shortdesc">框选要素闪烁</span>
+    </div>
+     <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        框选要素闪烁：</p><hr/>
+                     <input class="functionButton" type="button" id="disp" value="生成要素"   onclick="randFeatures()"/>
+                   <input class="functionButton" type="button" id="Button1" value="框选要素"  onclick="boxSelect()"/>
+                   <input class="functionButton" type="button" id="Button3" value="开始闪烁"  onclick="startFlashFhFea()"/>
+                   <input class="functionButton" type="button" id="Button2" value="停止闪烁"  onclick="stopFlashFhFea()"/>
+                   <input class="functionButton" type="button" id="Button4" value="停止拉框"  onclick="stopBoxFlashFea()"/>
+                   <input class="functionButton" type="button" id="Button5" value="清除"  onclick="clearFlashFea()"/>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

@@ -1,0 +1,59 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>百度地图显示示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+
+    <script type="text/javascript">
+        var map;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map({
+                div: "mapCon",
+                maxExtent: new OpenLayers.Bounds(-20037508.34, -20037508.34, 20037508.34, 20037508.34),
+                layers: [
+                    new Zondy.Map.BaiduLayer("百度矢量数据", {
+                        //百度地图类型
+                        layerType: "vector",
+                        isBaseLayer: true
+                    }),
+                    new Zondy.Map.BaiduLayer("百度影像数据", {
+                        //百度地图类型
+                        layerType: "raster",
+                        isBaseLayer: true
+                    }),
+                    new Zondy.Map.BaiduLayer("百度道路数据", {
+                        //百度地图类型
+                        layerType: "road",
+                        isBaseLayer: false
+                    })
+                ],
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                  //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                 //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+
+            //设置地图的显示中心及显示级数
+            map.setCenter(new OpenLayers.LonLat(0, 0), 3);
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header">
+        <span id="title">MapGIS IGServer BaiduLayerDisplay Example</span> <span id="shortdesc">
+            显示百度地图</span>
+    </div>
+    <div id="mapCon">
+    </div>
+</body>
+</html>

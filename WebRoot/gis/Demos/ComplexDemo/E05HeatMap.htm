@@ -1,0 +1,129 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>热力图示例</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*==========================================底图显示===================================================*/
+        var map, docLayer, heatMapLayer, testLayer;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                maxExtent: new OpenLayers.Bounds(-20037508.3427892, -20037508.3427892, 20037508.3427892, 20037508.3427892),
+                numZoomLevels: 9,
+                controls: [
+                    new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                    new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                    new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                    new OpenLayers.Control.MousePosition()                  //此控件显示鼠标移动时，所在点的地理坐标
+                ]
+            });
+
+            //初始化地图文档图层对象
+            docLayer = new Zondy.Map.Doc("MapGIS IGS MapDocLayer", "WorldMKTVector", {
+                isBaseLayer: true
+            });
+
+            heatMapLayer = new Zondy.Map.HeatMapLayer("heatMap", {
+                radius: 45,
+                featureWeight: "POPULATION",
+                featureRadius: "geoRadius"
+            });
+
+            //将地图文档图层加载到地图中
+            map.addLayers([docLayer, heatMapLayer]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+        }
+
+        function createHeatPoints() {
+
+            //查询，并根据结果生成热力图
+            var queryStruct = new Zondy.Service.QueryFeatureStruct();
+            queryStruct.IncludeGeometry = true;
+            var queryParam = new Zondy.Service.QueryParameter({ resultFormat: "json", struct: queryStruct, recordNumber: 300});
+            var queryService = new Zondy.Service.QueryDocFeature(queryParam, "WorldMKTVector", 0, 1, { ip: "127.0.0.1", port: "6163" });
+            queryService.query(onSuccessCONQ); //查询成功后的回调函数
+
+        }
+
+        function onSuccessCONQ(data) {
+            if (data == null || data.SFEleArray == null || data.SFEleArray.length <= 0) {
+                return;
+            }
+            var strjson = new Array(data.SFEleArray.length);
+            var geoInfo = new Array(data.SFEleArray.length);
+            for (var i = 0; i < data.SFEleArray.length; i++) {
+                strjson[i] = {};
+                geoInfo[i] = new Zondy.Object.Point2D();
+                strjson[i]["FID"] = data.SFEleArray[i].FID;
+                //获取用于生成热力图的属性值，并将属性值转换为0~10之间的值。
+                var fldValue = parseFloat(data.SFEleArray[i].AttValue[6]) / 274107375 + 5;
+                strjson[i]["人口"] = fldValue;
+//                                strjson[i]["人口"] = data.SFEleArray[i].AttValue[6];
+                //获取区要素的中心点，作为热力显示的中心
+                var geoBound = data.SFEleArray[i].bound;
+                geoInfo[i] = new Zondy.Object.Point2D((geoBound.xmax - geoBound.xmin) / 2, (geoBound.ymax - geoBound.ymin) / 2);
+            }
+
+
+            clearHeatPoints();
+            var heatPoints = [];
+            var radius = 2226389;
+            var unit = "degree",
+			useGeoRadius = false;
+            if ("degree" == unit) {
+                useGeoRadius = true;
+            }
+            heatMapLayer.radius = radius;
+
+            for (var j = 0; j < strjson.length; j++) {
+                var geometry = new OpenLayers.Geometry.Point(geoInfo[j].x, geoInfo[j].y);
+                var attribute = {
+                    "POPULATION": strjson[j]["人口"],
+                    "geoRadius": useGeoRadius ? radius : null
+                };
+                var vector = new OpenLayers.Feature.Vector(geometry, attribute, null);
+                vector.fid = j + 1;
+                heatPoints.push(vector);
+            }
+            heatMapLayer.addHeatFeatures(heatPoints);
+        }
+
+        function clearHeatPoints() {
+            heatMapLayer.removeAllFeatures();
+        }
+
+    </script>
+</head>
+<body onload="init();">
+    <div id="header">
+        <span id="title">MapGIS IGServer HeatMap Example</span> <span id="shortdesc">显示热力图</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        热区示例：</p>
+                    <hr />
+                    <input id="showHeatMapBtn" type="button" value="显示热力图" class="functionButton" onclick="createHeatPoints()" />
+                    <input id="removeHeatMapBtn" type="button" value="清除热力图" class="functionButton" onclick="clearHeatPoints()" />
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

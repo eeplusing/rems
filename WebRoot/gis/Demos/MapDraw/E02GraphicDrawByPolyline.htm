@@ -1,0 +1,78 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>根据坐标点串绘制线图形</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        var map, tilelayer;
+        var lineLayer;
+
+        //地图初始化函数
+
+       //地图初始化函数
+        function  init(){
+            map = new OpenLayers.Map("mapCon", {
+                isAutoConfig: true,  //设置自动获取MapGIS IGServer发布的地图的信息
+                //加载常用地图控件
+                controls:[
+                    //地图平移控件，添加后可以直接鼠标按下，移动地图
+                new OpenLayers.Control.PanZoomBar(),
+                    //导航条，用于缩放地图显示级别
+                new OpenLayers.Control.Navigation(),
+                    //图层控制面板
+                new OpenLayers.Control.LayerSwitcher(),
+                    //显示鼠标当前位置的地理坐标
+                new OpenLayers.Control.MousePosition()
+                ]
+
+            });
+
+
+            //初始化瓦片图层对象
+            tilelayer = new Zondy.Map.TileLayer("MapGIS IGServer TileLayer", "WorldMKTTile", {
+                //瓦片地图服务器ip
+                ip: "127.0.0.1",
+                //瓦片地图服务端口
+                port: "6163",
+                //瓦片裁剪的原点
+                tileOrigin: new OpenLayers.LonLat(0, 0),
+                //是否作为基础显示图层，默认为true
+                isBaseLayer: true,
+                //是否压缩瓦片，默认为false
+                compress:false
+            });
+            //将瓦片图层加载到地图中
+            map.addLayer(tilelayer);
+
+            /*直接输入坐标值，在客户端绘制点要素*/
+            lineLayer = new OpenLayers.Layer.Vector("polyline");
+            lineLayer.styleMap.styles["default"].defaultStyle.strokeColor = "orange";  //设置默认样式策略中绘制点要素的画笔的颜色
+            lineLayer.styleMap.styles["default"].defaultStyle.strokeWidth = 3;  //设置画笔宽度
+            lineLayer.styleMap.styles["default"].defaultStyle.fillColor = "red";  //设置点要素的填充色
+            //调用生成几何图形的快捷函数生成几何线
+            var linegeom = OpenLayers.Geometry.fromWKT("LINESTRING(-1899000.40098 -1348000.06383,000000.40098 1448000.06383,1892715.40098 2448000.06383)");
+            var linefeature = new OpenLayers.Feature.Vector(linegeom); //生成线要素
+            lineLayer.addFeatures([linefeature]); //向图层添加线要素
+            map.addLayers([lineLayer]);           
+
+
+
+            //设置地图初始显示级数和中心
+            map.setCenter(new OpenLayers.LonLat(114.3, 30.6), 2);
+        }
+    </script>
+</head>
+<body onload="init()">
+    <div id="header"> 
+        <span id="title">MapGIS IGServer DrawPolyline with Coordinate values Example</span> 
+        <span id="shortdesc">根据坐标点串绘制线图形</span>
+    </div>
+    <div id="mapCon">
+    </div>
+</body>
+</html>

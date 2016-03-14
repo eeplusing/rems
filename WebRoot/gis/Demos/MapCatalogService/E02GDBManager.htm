@@ -1,0 +1,219 @@
+﻿<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>数据库目录服务</title>
+    <!--导入外部样式表-->
+    <link href="../../CSS/ZondyDemoStyle.css" rel="stylesheet" type="text/css" />
+    <!--必要的脚本引用-->
+    <script src="../../Libs/jquery-1.7.1.min.js" type="text/javascript"></script>
+    <script src="../../Libs/OpenLayers.js" type="text/javascript"></script>
+    <script src="../../Libs/zdclient.js" type="text/javascript"></script>
+    <!--Easyui-->
+    <link href="../../CSS/import/orbit-1.2.3.css" rel="stylesheet" type="text/css" />
+    <link href="../../CSS/import/themes/base/jquery-ui-1.8.17.custom.css" rel="stylesheet"
+        type="text/css" />
+    <script src="../../Scripts/Easyui/jquery.orbit-1.2.3.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery-ui-1.8.17.custom.min.js" type="text/javascript"></script>
+    <script src="../../Scripts/Easyui/jquery.ui.datepicker-zh-CN.js" type="text/javascript"></script>
+    <link href="../../Scripts/Easyui/jqueryEasyui/easyui.css" rel="stylesheet" type="text/css" />
+    <link href="../../Scripts/Easyui/jqueryEasyui/icon.css" rel="stylesheet" type="text/css" />
+    <script src="../../Scripts/Easyui/jqueryEasyui/jquery.easyui.min.js" type="text/javascript"></script>
+    <script type="text/javascript">
+        /*========================================底图显示===================================================*/
+        var map, vectorMapdoc;
+
+        var data = null;
+
+        //地图初始化函数
+        function init() {
+            //初始化地图容器
+            map = new OpenLayers.Map('mapCon', {
+                isAutoConfig: true,
+                controls: [
+                        new OpenLayers.Control.PanZoomBar(),                    //缩放面板的工具控件
+                        new OpenLayers.Control.LayerSwitcher(),                 //图层切换控件
+                        new OpenLayers.Control.Navigation(),                    //此控件处理伴随鼠标事件的地图浏览
+                        new OpenLayers.Control.MousePosition()                 //此控件显示鼠标移动时，所在点的地理坐标
+                    ]
+            });
+            //初始化地图文档图层对象
+            vectorMapdoc = new Zondy.Map.Doc("MapGIS IGS VectorMapdocLayer", "WorldJWVector", {
+                //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163",
+                //是否作为基础显示图层，默认为true，表示最为基础显示图层
+                isBaseLayer: true
+            });
+            //将地图文档图层加载到地图中
+            map.addLayers([vectorMapdoc]);
+            //设置地图的初始化显示中心和级别
+            map.setCenter(new OpenLayers.LonLat(0, 0), 2);
+            getSvrList(); //获取已有数据源列表
+        }
+
+        //获取数据源列表
+        function getSvrList() {
+            //实例化VectorLayer类
+            var vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer({
+                //矢量地图文档地图服务器ip
+                ip: "127.0.0.1",
+                //矢量地图文档地图服务端口
+                port: "6163"
+            });
+            // 调用getServerList函数， getServerListSuccess为执行成功后的回调函数
+            vectorLayerInfo.getServerList(getServerListSuccess);
+        }
+        function getServerListSuccess(results) {
+            var svrSelect = $("#serverList");
+            for (var i = 0; i < results.length; i++) {
+                $("<option value='" + results[i] + "'>" + results[i] + "</option>").appendTo(svrSelect);
+            }
+
+        }
+
+
+        /*==========================================GDB管理（设置GDB信息）========================================*/
+        //设置地理数据库名称
+        function setGDBName() {
+            //实例化VectorLayer类
+            var vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer();
+            //调用setServerName方法，设置数据源名称为MapGISLocal
+            vectorLayerInfo.setServerName("MapGISLocal");
+            //调用setGdbName方法设置GDB为MapGISLocal数据源下的示例数据数据库
+            vectorLayerInfo.setGdbName($("#myGDBName").val());
+        }
+
+
+        /* ==========================================GDB管理（获取已有GDB信息）=================================================== */
+        //获取数据库列表
+        function getGDBList() {
+            var servername = $("#serverList  option:selected").text();
+            var vectorLayerInfo;
+            if (servername.toLowerCase() == "mapgislocal") {
+                //实例化VectorLayer类,数据源为MapGISLocal,则不需要用户名和密码
+                vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer({
+                    serverName: servername,
+                    ip: "127.0.0.1",
+                    //矢量地图文档地图服务端口
+                    port: "6163"
+                });
+            } else {
+                //实例化VectorLayer类,数据源不是MapGISLocal,需要用户名和密码
+                vectorLayerInfo = new Zondy.Service.Catalog.VectorLayer({
+                    serverName: servername,
+                    ip: "127.0.0.1",
+                    //矢量地图文档地图服务端口
+                    port: "6163",
+                    User: "sa",
+                    Password: "liuruoli0018"
+                });
+            }
+            //调用getGDBList函数， getGDBListSuccess为执行成功的回调函数
+            vectorLayerInfo.getGDBList(getGDBListSuccess);
+        }
+        function getGDBListSuccess(result) {
+            if (result.length == 0) {
+                alert("没有获取到数据库信息！" + $("#serverList  option:selected").text() + "下没有数据源或没有连接上GDBCatalog。");
+                return;
+            }
+            //显示结果
+            var strjson = new Array();
+            for (var i = 0; i < result.length; i++) {
+                strjson[i] = {};
+                for (var k = 0; k < 2; k++) {
+                    if (k == 0)
+                        strjson[i]["序号"] = i + 1;
+                    else
+                        strjson[i]["数据库名称"] = result[i];
+                }
+
+            }
+            //填充datagrid
+            var data = {
+                total: strjson.length + 1,
+                rows: strjson
+            };
+            //结果显示字段
+            var filedStr = new Array(2);
+            for (var j = 0; j < 2; j++) {
+                filedStr[j] = {};
+                if (j == 0) {
+                    filedStr[j]["field"] = "序号";
+                    filedStr[j]["title"] = "序号";
+                    filedStr[j]["width"] = "30";
+                }
+                else {
+                    filedStr[j]["field"] = "数据库名称";
+                    filedStr[j]["title"] = "数据库名称";
+                    filedStr[j]["width"] = "80";
+                }
+                filedStr[j]["align"] = "center";
+
+            }
+
+            //创建结果显示列表
+            var gdbDatagridRq = null;
+            gdbDatagridRq = $('#GDBListTable').datagrid({
+                title: '查询结果',
+                width: 210,
+                height: 150,
+                fitColumns: true,
+                rownumbers: true,
+                singleSelect: true,
+                pageNumber: 1,
+                pageSize: 5,
+                pageList: [5, 10, 15, 20],
+                nowrap: false,
+                collapsible: true,
+                columns: [filedStr]
+            });
+            $("#GDBListTable").datagrid("loadData", data);
+        }
+        
+    </script>
+</head>
+<body onload="init()">
+    <!--描述信息-->
+    <div id="header">
+        <span id="title">MapGIS IGServer CatalogService Example</span> <span id="shortdesc">
+            GDB管理</span>
+    </div>
+    <table id="contentTable">
+        <tr id="contentTableRow">
+            <td id="mapSpanelCon">
+                <!--地图显示-->
+                <div id="mapCon">
+                </div>
+            </td>
+            <td id="toolSpanelCon">
+                <div id="toolspanel">
+                    <p>
+                        获取指定数据源下数据库列表：<br />
+                        <span>数据源：</span>
+                        <select id="serverList">
+                        </select>
+                        <button onclick="getGDBList()">
+                            确定</button></p>
+                    <table id="GDBListTable">
+                        <tbody>
+                        </tbody>
+                    </table>
+                    <br />
+                    <br />
+                    <hr />
+                    <br />
+                    <p>
+                        设置数据库名称:<br />
+                        <span>（说明：此方法仅设置数据库名称，用于构建其他方法所需的参数，并不创建数据库）</span><br />
+                        <input id="myGDBName" type="text" />
+                        <button onclick="setGDBName()">
+                            确定</button>
+                    </p>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
